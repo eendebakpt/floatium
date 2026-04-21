@@ -1,0 +1,20 @@
+Vendored from https://github.com/ulfjack/ryu at the state of
+/home/eendebakpt/ryu (upstream). We only use the `d2fixed` path to
+route mode-3 (fixed precision) formatting through Ryu's bignum-free
+d2fixed algorithm, sidestepping the Dragon4+bigint slow path in
+fmt::detail::format_float that is ~2-6× slower on huge-magnitude
+doubles.
+
+Files:
+  d2fixed.c                 — public entry point d2fixed_buffered_n
+  d2fixed_full_table.h      — ~100 KB of pow10 multipliers
+  d2s_intrinsics.h          — shared uint128/64x64 helpers
+  common.h                  — shared helpers
+  digit_table.h             — two-digit "00".."99" lookup
+  ryu.h                     — public header (subset used)
+
+Local modifications:
+  #include "ryu/X"  ->  #include "X"   (flattened directory)
+
+Licensing: Apache-2.0 OR Boost-1.0 (see LICENSE-Apache and LICENSE-Boost).
+Both are compatible with floatium's MIT license.

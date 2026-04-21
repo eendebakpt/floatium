@@ -1,0 +1,80 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "floatium"
+version = "0.11.0"
+description = "Drop-in replacement for CPython float formatting/parsing, backed by {fmt} and fast_float. Demonstrator for a forthcoming CPython PEP."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Pieter Eendebak", email = "pieter.eendebak@gmail.com" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: C++",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["cpython", "float", "dtoa", "fmt", "fast_float", "repr", "format"]
+
+[project.urls]
+Homepage = "https://github.com/eendebakpt/floatium"
+Repository = "https://github.com/eendebakpt/floatium"
+Issues = "https://github.com/eendebakpt/floatium/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=8", "hypothesis>=6"]
+bench = ["pyperf>=2.7"]
+dev = ["pytest>=8", "hypothesis>=6", "pyperf>=2.7", "ruff>=0.5"]
+
+[tool.scikit-build]
+minimum-version = "0.10"
+cmake.version = ">=3.20"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["floatium"]
+# Default install-dir is /platlib, so CMake's DESTINATION is relative to
+# site-packages. `DESTINATION floatium` goes to site-packages/floatium/;
+# `DESTINATION .` goes to site-packages/ itself — which is where .pth
+# files take effect.
+
+[tool.scikit-build.cmake.define]
+FLOATIUM_FORMAT_BACKEND = "fmt_opt"
+FLOATIUM_PARSE_BACKEND = "fast_float"
+
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-* cp313t-* cp314-* cp314t-* cp315-* cp315t-*"
+skip = "*-musllinux_i686 pp*"
+test-extras = ["test"]
+test-command = "pytest {project}/tests -x -q --ignore={project}/tests/cpython_suite"
+build-verbosity = 1
+
+[tool.cibuildwheel.linux]
+archs = ["auto64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM", "RUF"]
