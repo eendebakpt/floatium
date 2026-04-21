@@ -1,0 +1,49 @@
+name: cpython-suite
+
+# Runs CPython's own stdlib regression tests against a floatium-patched
+# interpreter (Track A of the test strategy — see tests/cpython_suite/README.md).
+# If this workflow reports a failure, that's a real behavioral divergence
+# from stock CPython — the output should go into DIFFERENCES.md.
+#
+# Kept separate from ci.yml because each test run takes ~1 minute per
+# Python version and we don't want to block ordinary PRs on it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"     # weekly Monday at 07:00 UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stdlib-tests:
+    name: stdlib / py${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+        python: ["3.11", "3.12", "3.13", "3.13t", "3.14", "3.14t", "3.15", "3.15t"]
+        exclude:
+          - os: macos-14
+            python: "3.13t"
+          - os: windows-latest
+            python: "3.13t"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+
+      - run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Run CPython stdlib tests with FLOATIUM_AUTOPATCH=1
+        shell: bash
+        run: |
+          python tools/run_stdlib_tests.py

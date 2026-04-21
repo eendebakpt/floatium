@@ -1,0 +1,76 @@
+name: wheels
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"     # nightly sanity build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist --outdir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  build-wheels:
+    name: wheels / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
+          - os: macos-13      # x86_64
+          - os: macos-14      # arm64
+          - os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pypa/cibuildwheel@v2.21
+        env:
+          # Keep most config in pyproject.toml; these flags are the ones
+          # cibuildwheel 2.21 requires at the env level to opt into
+          # free-threaded and prerelease CPython builds.
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_FREE_THREADED_SUPPORT: "True"
+          CIBW_PRERELEASE_PYTHONS: "True"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  publish:
+    name: publish to PyPI
+    needs: [build-wheels, build-sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/floatium
+    permissions:
+      id-token: write         # trusted-publisher flow
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "{wheels-*,sdist}"
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -la dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

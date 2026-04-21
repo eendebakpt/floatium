@@ -1,0 +1,15 @@
+build/
+dist/
+wheelhouse/
+*.egg-info/
+__pycache__/
+*.pyc
+*.so
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+bench/results/*.json
+!bench/results/.gitkeep
+.venv/
+venv/
