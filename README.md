@@ -1,5 +1,9 @@
 # floatium
 
+[![PyPI](https://img.shields.io/pypi/v/floatium.svg)](https://pypi.org/project/floatium/)
+[![Python versions](https://img.shields.io/pypi/pyversions/floatium.svg)](https://pypi.org/project/floatium/)
+[![License](https://img.shields.io/pypi/l/floatium.svg)](https://github.com/eendebakpt/floatium/blob/main/LICENSE)
+
 Experimental drop-in replacement for CPython's float formatting and parsing,
 backed by the [{fmt}](https://github.com/fmtlib/fmt) and
 [fast_float](https://github.com/fastfloat/fast_float) C++ libraries.
