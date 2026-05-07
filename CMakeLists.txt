@@ -7,16 +7,19 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # --- Backend selection ------------------------------------------------------
-# Format backend: fmt_opt (default — fmt for repr/exp, Ryu d2fixed for fixed),
-#                 fmt (plain fmt for everything, for A/B measurement),
-#                 stock (CPython dtoa baseline), all.
+# Format backend: fmt_opt  (default — fmt for repr/exp, Ryu d2fixed for fixed),
+#                 fmt      (plain fmt for everything, for A/B measurement),
+#                 ryu_opt  (pure-C: Ryu d2s for repr, d2exp for %e/%g, d2fixed
+#                           for %f — zero C++ in the format path),
+#                 stock    (CPython dtoa baseline),
+#                 all.
 # Parse backend:  fast_float (default), stock, all.
 #
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
-set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, stock, all")
+set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, stock, all")
 set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, stock, all")
-set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt stock all)
+set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt stock all)
 set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float stock all)
 
 # --- Python -----------------------------------------------------------------
@@ -45,9 +48,22 @@ if(FLOATIUM_FORMAT_BACKEND STREQUAL "fmt_opt" OR FLOATIUM_FORMAT_BACKEND STREQUA
     list(APPEND FLOATIUM_SRCS
         src/backends/fmt_opt_format.cc
         src/cpython_adapter/fmt_opt_dtoa.cc
-        third_party/ryu/d2fixed.c
     )
     set(FLOATIUM_HAS_FMT_OPT_FORMAT 1)
+    set(FLOATIUM_NEEDS_RYU_D2FIXED 1)
+endif()
+if(FLOATIUM_FORMAT_BACKEND STREQUAL "ryu_opt" OR FLOATIUM_FORMAT_BACKEND STREQUAL "all")
+    list(APPEND FLOATIUM_SRCS
+        src/backends/ryu_opt_format.cc
+        src/cpython_adapter/ryu_opt_dtoa.cc
+        third_party/ryu/d2s.c
+    )
+    set(FLOATIUM_HAS_RYU_OPT_FORMAT 1)
+    set(FLOATIUM_NEEDS_RYU_D2FIXED 1)
+endif()
+# Ryu d2fixed.c is shared between fmt_opt and ryu_opt — compile it once.
+if(FLOATIUM_NEEDS_RYU_D2FIXED)
+    list(APPEND FLOATIUM_SRCS third_party/ryu/d2fixed.c)
 endif()
 if(FLOATIUM_FORMAT_BACKEND STREQUAL "stock" OR FLOATIUM_FORMAT_BACKEND STREQUAL "all")
     list(APPEND FLOATIUM_SRCS src/backends/stock_format.cc)
@@ -116,6 +132,7 @@ endif()
 target_compile_definitions(_ext PRIVATE
     $<$<BOOL:${FLOATIUM_HAS_FMT_FORMAT}>:FLOATIUM_HAS_FMT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FMT_OPT_FORMAT}>:FLOATIUM_HAS_FMT_OPT_FORMAT=1>
+    $<$<BOOL:${FLOATIUM_HAS_RYU_OPT_FORMAT}>:FLOATIUM_HAS_RYU_OPT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_FORMAT}>:FLOATIUM_HAS_STOCK_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FAST_FLOAT_PARSE}>:FLOATIUM_HAS_FAST_FLOAT_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_PARSE}>:FLOATIUM_HAS_STOCK_PARSE=1>

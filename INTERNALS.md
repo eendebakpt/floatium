@@ -24,6 +24,20 @@ Fields:
 - `available_*` — what was compiled into this wheel.
 - `default_*` — what `install()` picks if no backend is requested.
 
+## Library provenance
+
+- `{fmt}` (`third_party/fmt/`, ~9.4k LOC vendored) — MIT, header-only.
+  Ships Dragonbox + the format grammar + fallbacks in one upstream.
+- `fast_float` (`third_party/fast_float/`) — Apache-2.0 / MIT / Boost-1.0
+  triple-licensed, header-only, C++11. Used in Chromium, Apache Arrow,
+  ClickHouse, folly, DuckDB.
+- Ryu `d2fixed` (`third_party/ryu/`) — Apache-2.0 / Boost-1.0
+  dual-licensed. Only the `d2fixed` entry point is vendored
+  (~100 KB of pow10 tables); the shortest-format code paths are
+  redundant with fmt's Dragonbox.
+
+All three are redistribution-compatible with floatium's MIT license.
+
 ## Format backends
 
 Registered format backends (all produce output bit-identical to stock

@@ -49,17 +49,13 @@ package against stock CPython:
 - **Parse** (string → double) via `fast_float`'s Eisel–Lemire + bignum
   path — the same algorithm Rust's `std`, Apache Arrow, and DuckDB use.
 
-Both produce output **bit-identical** to stock CPython on every input
-we've tested (see [DIFFERENCES.md](DIFFERENCES.md) — currently zero
-divergences against CPython 3.15's stdlib test suite).
+A **pure-C** format backend (`ryu_opt`, using Ryu's `d2s` + `d2fixed` +
+`d2exp`) is also available for callers who want zero C++ in the
+float-formatting path. See [Backends](#backends) below.
 
-Library choices: `{fmt}` is MIT, header-only, and ships Dragonbox
-+ grammar + fallbacks from a single upstream (~9.4k LOC vendored).
-`fast_float` is Apache-2.0 / MIT / Boost-1.0 triple-licensed, header-only,
-C++11, and used in Chromium, Apache Arrow, ClickHouse, folly, and DuckDB.
-Ryu is Apache-2.0 / Boost-1.0 dual-licensed and only its `d2fixed` entry
-point is vendored (~100 KB of pow10 tables). Slots are backend-swappable
-— see [INTERNALS.md](INTERNALS.md).
+All backends produce output **bit-identical** to stock CPython on every
+input we've tested (see [DIFFERENCES.md](DIFFERENCES.md) — currently
+zero divergences against CPython 3.15's stdlib test suite).
 
 ## Usage
 
@@ -109,6 +105,54 @@ with floatium.patched():
 | `json.dumps([x])`                   | via `__repr__`                                |
 
 `"%g" % x` is **not** patched — see [DIFFERENCES.md](DIFFERENCES.md).
+
+## Backends
+
+Three format backends and two parse backends are available. All format
+backends produce bit-identical output. Pick one at build time, or build
+all of them and switch at install time.
+
+| Format backend | Algorithm                                          | C++ used? |
+|----------------|----------------------------------------------------|-----------|
+| `fmt_opt` (default) | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3) | yes |
+| `fmt`          | `{fmt}` Dragonbox + `fmt::detail::format_float`    | yes       |
+| `ryu_opt`      | Ryu `d2s` (mode 0) + `d2exp` (mode 2) + `d2fixed` (mode 3) | **no** |
+| `stock`        | marker — uninstalls and uses CPython's `dtoa.c`    | no        |
+
+| Parse backend  | Algorithm                                  | C++ used? |
+|----------------|--------------------------------------------|-----------|
+| `fast_float` (default) | Eisel–Lemire + bignum fallback     | yes       |
+| `stock`        | marker — uninstalls and uses CPython's `_Py_dg_strtod` | no |
+
+`ryu_opt` paired with `parse_backend="stock"` gives a fully pure-C
+operation (zero C++ on either side). To build only the pure-C path:
+
+```bash
+pip install -e . \
+  -C cmake.define.FLOATIUM_FORMAT_BACKEND=ryu_opt \
+  -C cmake.define.FLOATIUM_PARSE_BACKEND=stock
+```
+
+Or build every backend and pick at runtime:
+
+```bash
+pip install -e . \
+  -C cmake.define.FLOATIUM_FORMAT_BACKEND=all \
+  -C cmake.define.FLOATIUM_PARSE_BACKEND=all
+```
+
+```python
+import floatium
+floatium.install(format_backend="ryu_opt", parse_backend="stock")
+```
+
+The `ryu_opt` adapter (mode dispatch, FP fast path for `%e`/`%g`,
+banker's rounding for `round(x, k)` with negative `k`) is ported from
+the [`rye_float`](https://github.com/eendebakpt/cpython/tree/rye_float)
+companion CPython branch — the in-tree pure-C demonstrator that drops
+`Python/dtoa.c`. Ryu is vendored from
+[`ulfjack/ryu`](https://github.com/ulfjack/ryu) at the commit pinned in
+`third_party/ryu/README.vendor`; resync via `tools/sync_ryu.sh`.
 
 ## Benchmarks
 
@@ -205,16 +249,11 @@ See [DIFFERENCES.md](DIFFERENCES.md) for the full list. Summary:
 - `{fmt}` (vendored in `third_party/fmt/`): **MIT**.
 - `fast_float` (vendored in `third_party/fast_float/`): **Apache-2.0 OR
   MIT OR Boost-1.0**.
-- Ryu `d2fixed` (vendored in `third_party/ryu/`): **Apache-2.0 OR
-  Boost-1.0**.
+- Ryu (`d2s` + `d2fixed`, vendored in `third_party/ryu/`): **Apache-2.0
+  OR Boost-1.0**.
 - `src/format_short.cc` is a port of code from CPython `Python/pystrtod.c`,
   which is under the **PSF License**. The port preserves the original
   attribution and is compatible with downstream MIT redistribution under
   the PSF license's permissive terms.
 
 See `LICENSE` and the per-directory `LICENSE*` files.
-
-## Status
-
-Pre-alpha. v0.1.x — the API will stay small (the four functions in
-`floatium/__init__.py`) but the internals will change.
