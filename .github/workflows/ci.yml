@@ -19,6 +19,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-14, windows-latest]
         python: ["3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
+        exclude:
+          # 3.15 is still pre-release (alpha at time of writing) and the
+          # free-threaded Windows binary distributed via setup-python's
+          # python-versions repo has flaked here at least once
+          # (concurrent jobs racing for the same download). Re-add this
+          # cell once 3.15t has shipped a stable Windows release; until
+          # then ubuntu and macos provide free-threaded 3.15 coverage.
+          - os: windows-latest
+            python: "3.15t"
     steps:
       - uses: actions/checkout@v5
 
