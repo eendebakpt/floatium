@@ -46,6 +46,11 @@ namespace {
 struct SavedState {
     reprfunc tp_repr = nullptr;
     newfunc tp_new = nullptr;
+    vectorcallfunc tp_vectorcall = nullptr;  // CPython 3.13+ specializing
+                                              // interpreter dispatches
+                                              // float(s) via this slot via
+                                              // CALL_BUILTIN_CLASS, bypassing
+                                              // tp_new entirely.
     PyObject *orig_format = nullptr;  // original float.__format__ bound method descriptor
 
     bool patched = false;
@@ -283,6 +288,50 @@ static PyObject *parse_ascii_with_backend(const char *buf, Py_ssize_t len) {
 }
 
 // ---------------------------------------------------------------------------
+// Replacement: tp_vectorcall
+// ---------------------------------------------------------------------------
+//
+// CPython's specializing interpreter (3.13+) quickens the bytecode for
+// `float(s)` to CALL_BUILTIN_CLASS, which calls `tp_vectorcall` directly
+// (see ceval.c:_Py_CallBuiltinClass_StackRef). PyFloat_Type's stock
+// vectorcall (`float_vectorcall`) calls `float_new_impl` *without* going
+// through tp_new, so a tp_new-only patch never fires for the common
+// `float(s)` call shape. Patching tp_vectorcall as well closes that gap.
+//
+// Behavior matches floatium_float_new: intercept the (type=PyFloat_Type,
+// no kwnames, exactly one positional str arg) shape; everything else
+// falls through to the saved original vectorcall.
+static PyObject *floatium_float_vectorcall(PyObject *type,
+                                           PyObject *const *args,
+                                           size_t nargsf,
+                                           PyObject *kwnames) {
+    if (type != (PyObject *)&PyFloat_Type) {
+        return g_state.tp_vectorcall(type, args, nargsf, kwnames);
+    }
+    if (kwnames != nullptr && PyTuple_GET_SIZE(kwnames) != 0) {
+        return g_state.tp_vectorcall(type, args, nargsf, kwnames);
+    }
+    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+    if (nargs != 1) {
+        return g_state.tp_vectorcall(type, args, nargsf, kwnames);
+    }
+    PyObject *arg = args[0];
+    if (!PyUnicode_Check(arg)) {
+        return g_state.tp_vectorcall(type, args, nargsf, kwnames);
+    }
+
+    Py_ssize_t len = 0;
+    const char *buf = PyUnicode_AsUTF8AndSize(arg, &len);
+    if (!buf) return nullptr;
+
+    PyObject *result = parse_ascii_with_backend(buf, len);
+    if (result) return result;
+    // fast_float rejected the input or it had tricky chars; fall back.
+    PyErr_Clear();
+    return g_state.tp_vectorcall(type, args, nargsf, kwnames);
+}
+
+// ---------------------------------------------------------------------------
 // install() / uninstall()
 // ---------------------------------------------------------------------------
 extern "C" {
@@ -341,14 +390,16 @@ int floatium_install(const FloatiumFormatBackend *fmt_b,
     Py_DECREF(func);
     Py_DECREF(type_dict);
 
-    // Save originals and install our tp_repr / tp_new.
-    g_state.tp_repr = PyFloat_Type.tp_repr;
-    g_state.tp_new  = PyFloat_Type.tp_new;
-    g_state.fmt_backend = fmt_b;
-    g_state.parse_backend = parse_b;
+    // Save originals and install our tp_repr / tp_new / tp_vectorcall.
+    g_state.tp_repr        = PyFloat_Type.tp_repr;
+    g_state.tp_new         = PyFloat_Type.tp_new;
+    g_state.tp_vectorcall  = PyFloat_Type.tp_vectorcall;
+    g_state.fmt_backend    = fmt_b;
+    g_state.parse_backend  = parse_b;
 
-    PyFloat_Type.tp_repr = floatium_float_repr;
-    PyFloat_Type.tp_new  = floatium_float_new;
+    PyFloat_Type.tp_repr        = floatium_float_repr;
+    PyFloat_Type.tp_new         = floatium_float_new;
+    PyFloat_Type.tp_vectorcall  = floatium_float_vectorcall;
 
     // Invalidate PyFloat_Type's method cache by clearing the version tag.
     // PyType_Modified() asserts against static builtin types in debug builds
@@ -373,8 +424,9 @@ int floatium_install(const FloatiumFormatBackend *fmt_b,
 int floatium_uninstall(void) {
     if (!g_state.patched) return 0;
 
-    PyFloat_Type.tp_repr = g_state.tp_repr;
-    PyFloat_Type.tp_new  = g_state.tp_new;
+    PyFloat_Type.tp_repr        = g_state.tp_repr;
+    PyFloat_Type.tp_new         = g_state.tp_new;
+    PyFloat_Type.tp_vectorcall  = g_state.tp_vectorcall;
 
     if (g_state.orig_format) {
         PyObject *type_dict = floatium_get_type_dict(&PyFloat_Type);
@@ -395,11 +447,12 @@ int floatium_uninstall(void) {
     PyType_Modified(&PyFloat_Type);
 #endif
 
-    g_state.tp_repr = nullptr;
-    g_state.tp_new  = nullptr;
-    g_state.fmt_backend = nullptr;
-    g_state.parse_backend = nullptr;
-    g_state.patched = false;
+    g_state.tp_repr        = nullptr;
+    g_state.tp_new         = nullptr;
+    g_state.tp_vectorcall  = nullptr;
+    g_state.fmt_backend    = nullptr;
+    g_state.parse_backend  = nullptr;
+    g_state.patched        = false;
     return 0;
 }
 

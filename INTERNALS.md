@@ -72,11 +72,17 @@ exp2 ≈ 3.32 × decade, hence the integer inequality above.
 
 ## Parse backend
 
-Only `fast_float` is registered on the parse side. `float(str)` is
-intercepted by swapping `PyFloat_Type.tp_new`; the wrapper UTF-8
-extracts, strips whitespace, rejects underscores / non-ASCII (those
-fall through to the original `tp_new`), null-terminates, and calls the
-backend's `strtod`.
+Two parse backends are registered: `fast_float` (default) and `stock`
+(libc `strtod`, mainly for A/B comparison). `float(str)` is intercepted
+by swapping **both** `PyFloat_Type.tp_new` and
+`PyFloat_Type.tp_vectorcall`. The vectorcall slot is necessary because
+CPython 3.13+'s specializing interpreter quickens `float(s)` to the
+`CALL_BUILTIN_CLASS` opcode, which dispatches via `tp_vectorcall` —
+bypassing `tp_new`. Patching only `tp_new` would silently miss the
+common direct call shape; the wrapper handles both. Both wrappers UTF-8
+extract, strip whitespace, reject underscores / non-ASCII (those fall
+through to the saved original), null-terminate, and call the backend's
+`strtod`.
 
 ## Backend abstraction
 

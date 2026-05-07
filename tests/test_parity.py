@@ -1,12 +1,14 @@
 """Byte-for-byte parity with stock CPython's float output.
 
-The `fmt-fastfloat` CPython branch claims bit-identical output vs the
-stock dtoa build. floatium vendors the same wrappers, so these tests
-reconfirm that claim against the interpreter the wheel actually runs on.
+Floatium vendors {fmt} + fast_float (and Ryu, for the ryu_opt and
+fmt_opt backends) directly from upstream and bridges them to CPython's
+formatting/parsing contracts via thin wrappers in src/cpython_adapter/.
+Bit-identical output vs the stock dtoa build is the requirement; these
+tests reconfirm it against the interpreter the wheel actually runs on.
 
 Any failure here is either (a) a divergence we need to document in
 DIFFERENCES.md, or (b) a bug in our packaging layer (format_float_short
-port) that doesn't exist in the CPython branch. Report both upstream.
+port). Report (a) upstream; fix (b) here.
 """
 
 from __future__ import annotations

@@ -150,9 +150,28 @@ The `ryu_opt` adapter (mode dispatch, FP fast path for `%e`/`%g`,
 banker's rounding for `round(x, k)` with negative `k`) is ported from
 the [`rye_float`](https://github.com/eendebakpt/cpython/tree/rye_float)
 companion CPython branch — the in-tree pure-C demonstrator that drops
-`Python/dtoa.c`. Ryu is vendored from
-[`ulfjack/ryu`](https://github.com/ulfjack/ryu) at the commit pinned in
-`third_party/ryu/README.vendor`; resync via `tools/sync_ryu.sh`.
+`Python/dtoa.c`.
+
+### Vendored libraries
+
+All three are vendored directly from upstream — pinned versions live in
+each `third_party/<lib>/README.vendor`:
+
+| Library | Upstream | Resync |
+|---|---|---|
+| [`{fmt}`](https://github.com/fmtlib/fmt) | `fmtlib/fmt` | `tools/sync_fmt.sh [/path/to/fmt]` |
+| [`fast_float`](https://github.com/fastfloat/fast_float) | `fastfloat/fast_float` | `tools/sync_fast_float.sh [/path/to/fast_float]` |
+| [`Ryu`](https://github.com/ulfjack/ryu) | `ulfjack/ryu` | `tools/sync_ryu.sh [/path/to/ryu]` |
+
+Each script defaults to `~/<libname>` and copies a fixed file set into
+`third_party/<lib>/`. None of the vendored files are locally modified
+except for one trivial include rewrite in Ryu (`#include "ryu/X"` →
+`#include "X"`); see each `README.vendor` for the file list.
+
+The C++ adapter shims that bridge these libraries to CPython's
+formatting/parsing contracts (`fmt_dtoa.cc`, `fmt_opt_dtoa.cc`,
+`fast_float_strtod.cc`, `ryu_opt_dtoa.cc`) live in
+`src/cpython_adapter/` as floatium-owned code.
 
 ## Benchmarks
 
@@ -165,45 +184,52 @@ bench/run_all.sh                                  # full pyperf sweep
 
 Numbers below are from a release CPython 3.14.3 build
 (`python -m bench.bench_ns_per_op`, median of fastest third of samples,
-lower is better). The default backend is `fmt_opt`; see
-[INTERNALS.md](INTERNALS.md) for the routing. The `fmt` column is the
-plain-fmt backend, included for A/B transparency:
+lower is better) using floatium's default `fmt_opt` format backend +
+`fast_float` parse backend. See [INTERNALS.md](INTERNALS.md) for the
+routing inside `fmt_opt`, and the [Backends](#backends) section above
+for how to A/B against `fmt`, `ryu_opt`, or `stock`:
 
-| Corpus          | Operation       | Stock (ns) | fmt (ns) | fmt_opt (ns) | fmt vs stock | fmt_opt vs stock |
-|-----------------|-----------------|-----------:|---------:|-------------:|-------------:|-----------------:|
-| random_uniform  | `repr(x)`       |        289 |       97 |           97 |        2.99× |            2.98× |
-| random_uniform  | `f"{x:.4f}"`    |        119 |      104 |          104 |        1.14× |            1.15× |
-| random_uniform  | `float(s)`      |        121 |      121 |          121 |        1.00× |            1.00× |
-| random_bits     | `repr(x)`       |        820 |      136 |          137 |        6.03× |            5.99× |
-| random_bits     | `f"{x:.4f}"`    |      1,940 |    5,530 |          193 |        0.35× |           10.04× |
-| random_bits     | `float(s)`      |        277 |      279 |          278 |        0.99× |            1.00× |
-| financial       | `repr(x)`       |        173 |       80 |           80 |        2.16× |            2.15× |
-| financial       | `f"{x:.4f}"`    |        146 |       99 |          101 |        1.46× |            1.44× |
-| financial       | `float(s)`      |         37 |       37 |           37 |        1.00× |            1.00× |
-| scientific      | `repr(x)`       |        637 |      133 |          133 |        4.79× |            4.78× |
-| scientific      | `f"{x:.4f}"`    |      1,081 |    2,961 |          158 |        0.36× |            6.84× |
-| scientific      | `float(s)`      |        213 |      213 |          212 |        1.00× |            1.00× |
-| integer_valued  | `repr(x)`       |        143 |       88 |           88 |        1.63× |            1.64× |
-| integer_valued  | `f"{x:.4f}"`    |        167 |      105 |          106 |        1.59× |            1.58× |
-| integer_valued  | `float(s)`      |         43 |       43 |           43 |        1.00× |            1.00× |
+| Corpus          | Operation       | Stock (ns) | floatium (ns) | Speedup |
+|-----------------|-----------------|-----------:|--------------:|--------:|
+| random_uniform  | `repr(x)`       |        284 |            96 |   2.95× |
+| random_uniform  | `f"{x:.4f}"`    |        119 |           103 |   1.16× |
+| random_uniform  | `float(s)`      |        121 |            44 |   2.79× |
+| random_bits     | `repr(x)`       |        820 |           134 |   6.11× |
+| random_bits     | `f"{x:.4f}"`    |      1,933 |           196 |   9.86× |
+| random_bits     | `float(s)`      |        275 |            61 |   4.52× |
+| financial       | `repr(x)`       |        171 |            80 |   2.14× |
+| financial       | `f"{x:.4f}"`    |        145 |           101 |   1.43× |
+| financial       | `float(s)`      |         37 |            36 |   1.01× |
+| scientific      | `repr(x)`       |        640 |           135 |   4.74× |
+| scientific      | `f"{x:.4f}"`    |      1,081 |           161 |   6.71× |
+| scientific      | `float(s)`      |        212 |            58 |   3.64× |
+| integer_valued  | `repr(x)`       |        143 |            88 |   1.62× |
+| integer_valued  | `f"{x:.4f}"`    |        169 |           106 |   1.60× |
+| integer_valued  | `float(s)`      |         43 |            42 |   1.02× |
 
-**fmt_opt eliminates the fixed-mode regression.** Plain `fmt` regresses
-by 2-3× on `random_bits` and `scientific` `f"{x:.4f}"` because
-`fmt::detail::format_float` falls into a Dragon4 + bigint classical loop
-when the value's decade + requested precision exceeds the 19-digit
-Dragonbox first segment. `fmt_opt` detects that cliff from the binary
-exponent and routes only those cases through Ryu's `d2fixed` — which is
-block-based and always fast — while keeping fmt's fast subsegment path
-for ordinary magnitudes. Output is bit-identical on both paths.
+**Wins are largest on hard inputs.** `random_bits` and `scientific`
+corpora — values whose decimal expansion stresses dtoa's big-integer
+path — see 6–10× on `repr` / `f"{x:.4f}"` and 3.6–4.5× on `float(s)`.
+On `financial` and `integer_valued`, parse stays near 1× because the
+inputs are short, integer-valued strings where dtoa's fast path and
+fast_float's Eisel–Lemire path both finish in tens of nanoseconds —
+there's not enough work to amortize either parser's setup cost.
 
-**Parse is flat at this layer.** `fast_float` beats `_Py_dg_strtod` on
-raw `from_chars`, but the wrapper's per-call overhead (UTF-8 extraction,
-whitespace strip, null-termination copy, `PyFloat_FromDouble`) cancels
-the gain on these corpora. The speedup is recoverable either by lifting
-the hook closer to `PyFloat_FromString` (requires an in-tree CPython
-change, out of scope for a pip package) or by batching string-heavy
-workloads where the per-call overhead amortizes — JSON and CSV parsers
-are the obvious candidates.
+For the format side specifically, plain `fmt` regresses on fixed-mode
+huge-magnitude inputs because `fmt::detail::format_float` falls into a
+Dragon4 + bigint classical loop when the value's decade + requested
+precision exceeds the 19-digit Dragonbox first segment; `fmt_opt`
+detects that cliff from the binary exponent and routes those cases
+through Ryu's `d2fixed`, which is block-based and always fast.
+
+**Parse hooks both `tp_new` and `tp_vectorcall`.** CPython 3.13+'s
+specializing interpreter quickens `float(s)` to `CALL_BUILTIN_CLASS`,
+which dispatches through `tp_vectorcall` — bypassing `tp_new`. Patching
+only `tp_new` would silently leave fast_float disconnected for the
+common direct call (`type.__call__(float, s)` would still hit the
+hook, but `float(s)` would not). Floatium patches both slots, so the
+benchmark numbers above reflect fast_float actually running, not the
+stock parser running twice.
 
 ## Running CPython's test suite against floatium
 
