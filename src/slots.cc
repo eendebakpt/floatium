@@ -214,7 +214,11 @@ static PyObject *floatium_float_new(PyTypeObject *type, PyObject *args,
         return g_state.tp_new(type, args, kwds);
     }
     PyObject *arg = PyTuple_GET_ITEM(args, 0);
-    if (!PyUnicode_Check(arg)) {
+    // Use CheckExact, not Check: a str subclass may override __float__,
+    // and stock CPython's float_new_impl honors that by routing
+    // subclasses through PyNumber_Float instead of PyFloat_FromString.
+    // See test_float.test_floatconversion (FooStr case).
+    if (!PyUnicode_CheckExact(arg)) {
         return g_state.tp_new(type, args, kwds);
     }
 
@@ -316,7 +320,10 @@ static PyObject *floatium_float_vectorcall(PyObject *type,
         return g_state.tp_vectorcall(type, args, nargsf, kwnames);
     }
     PyObject *arg = args[0];
-    if (!PyUnicode_Check(arg)) {
+    // Use CheckExact, not Check: see floatium_float_new for the rationale
+    // (str subclasses with __float__ must reach PyNumber_Float, not our
+    // PyFloat_FromString shortcut).
+    if (!PyUnicode_CheckExact(arg)) {
         return g_state.tp_vectorcall(type, args, nargsf, kwnames);
     }
 

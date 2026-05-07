@@ -88,6 +88,33 @@ def test_large_integer_valued_float():
     assert "e" in s or s.endswith(".0") or "." in s
 
 
+def test_str_subclass_with_float_dunder():
+    # Regression: float() on a str subclass with __float__ must call
+    # __float__, not parse the string. Stock CPython's float_new_impl
+    # uses PyUnicode_CheckExact for exactly this reason; floatium's
+    # tp_new + tp_vectorcall hooks must follow suit. (See test_float
+    # in CPython's stdlib: FooStr('8') with __float__ returning
+    # float(str(self)) + 1 must yield 9.0, not 8.0.)
+    class FooStr(str):
+        def __float__(self):
+            return float(str(self)) + 1
+    assert float(FooStr('8')) == 9.0
+    assert float(FooStr('-3.5')) == -2.5
+    # Plain str still parses as expected.
+    assert float('8') == 8.0
+
+
+def test_str_subclass_without_float_dunder():
+    # A str subclass without __float__ should still parse (CPython
+    # falls through to PyNumber_Float, which calls __float__ via
+    # __index__/__float__ MRO; for a bare str subclass it ends up
+    # calling str's __float__, which parses).
+    class PlainStr(str):
+        pass
+    assert float(PlainStr('1.5')) == 1.5
+    assert float(PlainStr('-2e3')) == -2000.0
+
+
 def test_round_trip_known_problem_values():
     # A pile of values that have historically caused trouble in dtoa
     # implementations. The goal here is just "round-trips"; we don't
