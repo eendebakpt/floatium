@@ -8,8 +8,10 @@
 set -euo pipefail
 
 # Every bench installs/uninstalls floatium explicitly; if the .pth hook
-# were also active, the two would fight. Unset for the whole sweep.
-unset FLOATIUM_AUTOPATCH
+# were also active, the two would fight. Autopatch is ON by default
+# since v0.13.0, so unsetting the env var isn't enough — force it to 0
+# for the whole sweep.
+export FLOATIUM_AUTOPATCH=0
 
 cd "$(dirname "$0")/.."
 

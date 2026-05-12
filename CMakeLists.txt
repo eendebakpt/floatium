@@ -11,16 +11,21 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #                 fmt      (plain fmt for everything, for A/B measurement),
 #                 ryu_opt  (pure-C: Ryu d2s for repr, d2exp for %e/%g, d2fixed
 #                           for %f — zero C++ in the format path),
-#                 stock    (CPython dtoa baseline),
 #                 all.
 # Parse backend:  fast_float (default), wuffs (pure-C Eisel-Lemire + HPD),
 #                 stock     (libc strtod via floatium's wrapper), all.
 #
+# For a "stock CPython" format baseline, just `floatium.uninstall()` —
+# there is no stock format backend, because a backend has to produce a
+# digit string and stock CPython's path produces a packaged string
+# (with sign / dot / exponent) directly. Parse-side has a real `stock`
+# backend that calls libc strtod through floatium's wrapper.
+#
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
-set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, stock, all")
+set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, all")
 set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, stock, all")
-set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt stock all)
+set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt all)
 set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs stock all)
 
 # --- Python -----------------------------------------------------------------
@@ -65,10 +70,6 @@ endif()
 if(FLOATIUM_NEEDS_RYU_D2FIXED)
     list(APPEND FLOATIUM_SRCS third_party/ryu/d2fixed.c)
 endif()
-if(FLOATIUM_FORMAT_BACKEND STREQUAL "stock" OR FLOATIUM_FORMAT_BACKEND STREQUAL "all")
-    list(APPEND FLOATIUM_SRCS src/backends/stock_format.cc)
-    set(FLOATIUM_HAS_STOCK_FORMAT 1)
-endif()
 if(FLOATIUM_PARSE_BACKEND STREQUAL "fast_float" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
     list(APPEND FLOATIUM_SRCS
         src/backends/fast_float_parse.cc
@@ -87,12 +88,6 @@ if(FLOATIUM_PARSE_BACKEND STREQUAL "stock" OR FLOATIUM_PARSE_BACKEND STREQUAL "a
     list(APPEND FLOATIUM_SRCS src/backends/stock_parse.cc)
     set(FLOATIUM_HAS_STOCK_PARSE 1)
 endif()
-
-# Always compile fmt's format TU when fmt_opt is selected — fmt_opt_dtoa.cc
-# still uses fmt for modes 0/2 and for the negative-ndigits fallback.
-# fmt_format.cc's sources are already included above in the "fmt" branch;
-# when only fmt_opt is selected we still need fmt_dtoa.cc's headers to be
-# available to fmt_opt_dtoa.cc via FMT_HEADER_ONLY.
 
 python3_add_library(_ext MODULE ${FLOATIUM_SRCS} WITH_SOABI)
 
@@ -144,7 +139,6 @@ target_compile_definitions(_ext PRIVATE
     $<$<BOOL:${FLOATIUM_HAS_FMT_FORMAT}>:FLOATIUM_HAS_FMT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FMT_OPT_FORMAT}>:FLOATIUM_HAS_FMT_OPT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_RYU_OPT_FORMAT}>:FLOATIUM_HAS_RYU_OPT_FORMAT=1>
-    $<$<BOOL:${FLOATIUM_HAS_STOCK_FORMAT}>:FLOATIUM_HAS_STOCK_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FAST_FLOAT_PARSE}>:FLOATIUM_HAS_FAST_FLOAT_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_WUFFS_PARSE}>:FLOATIUM_HAS_WUFFS_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_PARSE}>:FLOATIUM_HAS_STOCK_PARSE=1>

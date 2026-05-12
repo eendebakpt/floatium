@@ -6,19 +6,13 @@
 
 Experimental drop-in replacement for CPython's float formatting and parsing,
 backed by the [{fmt}](https://github.com/fmtlib/fmt) and
-[fast_float](https://github.com/fastfloat/fast_float) C++ libraries, with
-an optional pure-C path via [Ryu](https://github.com/ulfjack/ryu) and
-[Wuffs](https://github.com/google/wuffs).
+[fast_float](https://github.com/fastfloat/fast_float) C++ libraries.
 
-```bash
-pip install floatium
-```
-
-— and every subsequent Python process uses `{fmt}`'s Dragonbox for
-`repr(float)` / `str(float)` / `float.__format__` and `fast_float` for
-`float("...")`. Existing code, existing tests, existing output — just
-faster. Works with an unmodified stock CPython; no interpreter rebuild
-required.
+After `pip install floatium`, every subsequent Python process uses
+`{fmt}`'s Dragonbox for `repr(float)` / `str(float)` /
+`float.__format__` and `fast_float` for `float("...")`. Existing code,
+existing tests, existing output — just faster. Works with an unmodified
+stock CPython; no interpreter rebuild required.
 
 ## Installation
 

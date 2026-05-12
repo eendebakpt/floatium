@@ -42,7 +42,9 @@ _FORMAT_SPECS = ["", ".2f", ".5f", ".0f", ".2e", ".5e", ".10e",
 def _stock(expr: str) -> str:
     import os
     env = os.environ.copy()
-    env.pop("FLOATIUM_AUTOPATCH", None)
+    # Autopatch defaults to ON since v0.13.0; force it off in the
+    # subprocess so we genuinely measure stock CPython output.
+    env["FLOATIUM_AUTOPATCH"] = "0"
     proc = subprocess.run(
         [sys.executable, "-c", f"import sys; sys.stdout.write({expr})"],
         env=env, capture_output=True, text=True, check=True,

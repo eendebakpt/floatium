@@ -111,23 +111,30 @@ def cmd_disable(_args: argparse.Namespace) -> int:
 def cmd_status(_args: argparse.Namespace) -> int:
     m = _marker_path()
     env = _env_override()
+    marker_present = m.exists()
+
     if env is True:
         active = True
         reason = "FLOATIUM_AUTOPATCH set to truthy value"
+        if marker_present:
+            reason += " (marker present but shadowed by env override)"
     elif env is False:
         active = False
         reason = "FLOATIUM_AUTOPATCH set to falsey value"
-    elif m.exists():
+        if marker_present:
+            reason += " (marker also present; either would disable)"
+    elif marker_present:
         active = False
         reason = f"marker present at {m}"
     else:
         active = True
         reason = "default (no marker, no env-var override)"
+
     print(
         f"floatium autopatch: {'ENABLED' if active else 'DISABLED'}\n"
         f"  reason:        {reason}\n"
         f"  marker path:   {m}\n"
-        f"  marker exists: {m.exists()}\n"
+        f"  marker exists: {marker_present}\n"
         f"  env override:  {os.environ.get('FLOATIUM_AUTOPATCH', '(unset)')}"
     )
     return 0
@@ -149,6 +156,13 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Manage floatium autopatch state. With no marker and no env-var "
             "override, autopatch is ENABLED by default."
+        ),
+        epilog=(
+            "Environment variable FLOATIUM_AUTOPATCH wins over the marker "
+            "file: set it to 0/false/no/off to disable autopatch for one "
+            "process, or 1/true/yes/on to force-enable. Right knob for CI "
+            "and ad-hoc subprocesses; `disable` is the right knob for "
+            "persistent per-environment opt-out."
         ),
     )
     sub = p.add_subparsers(dest="cmd", metavar="{enable,disable,status,info}")

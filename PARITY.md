@@ -7,9 +7,13 @@ This file is the parity report — any observed divergence shows up here.
 
 ## Last verified
 
-- Interpreter: Python 3.15.0a3 (free-threaded debug build)
-- floatium commit: initial (v0.1.0.dev0)
-- Upstream CPython commit (fmt-fastfloat branch): `46e18aa3d5b`
+The canonical parity check is the
+[cpython-suite workflow](../../actions/workflows/cpython-suite.yml) —
+it runs CPython 3.14 / 3.14t / 3.15 / 3.15t × ubuntu / macos / windows
+through `tools/run_stdlib_tests.py` against the 12 float-relevant
+stdlib test files, weekly + on every push to `main`. Check the latest
+run for the current status; the rest of this document describes the
+*intended* state.
 
 ## Summary: zero divergences
 
@@ -17,7 +21,6 @@ This file is the parity report — any observed divergence shows up here.
 $ python tools/run_stdlib_tests.py
 == Tests result: SUCCESS ==
 All 12 tests OK.
-Total tests: run=1,616 skipped=210
 ```
 
 Default test set:
@@ -25,9 +28,10 @@ Default test set:
 `test_json`, `test_struct`, `test_string`, `test_decimal`, `test_math`,
 `test_cmath`, `test_statistics`.
 
-In addition, the 499-entry byte-identical parity matrix in
-`tests/test_parity.py` (repr, str, format across ~50 format specs × 23
-curated values) passes 100%.
+In addition, `tests/test_parity.py` byte-compares floatium output to
+stock-CPython output for `repr`, `str`, and `format` across ~50 format
+specs × 23 curated values, plus a separate roundtrip suite over
+10k random doubles — all bit-identical.
 
 ## Known limitations (not divergences)
 

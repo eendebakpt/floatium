@@ -11,7 +11,7 @@ see the [README](README.md) first.
 {'patched': True,
  'format_backend': 'fmt_opt',
  'parse_backend': 'fast_float',
- 'available_format_backends': 'fmt,fmt_opt,ryu_opt,stock',
+ 'available_format_backends': 'fmt,fmt_opt,ryu_opt',
  'available_parse_backends': 'fast_float,wuffs,stock',
  'default_format_backend': 'fmt_opt',
  'default_parse_backend': 'fast_float'}
@@ -37,13 +37,19 @@ time, or build all of them and switch at install time:
 | `fmt_opt` (default)  | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3)     | yes  |
 | `fmt`                | `{fmt}` Dragonbox + `fmt::detail::format_float`            | yes  |
 | `ryu_opt`            | Ryu `d2s` (mode 0) + `d2exp` (mode 2) + `d2fixed` (mode 3) | **no** |
-| `stock`              | marker — uninstalls and uses CPython's `dtoa.c`            | no   |
 
 | Parse backend        | Algorithm                                                  | C++? |
 |----------------------|------------------------------------------------------------|------|
 | `fast_float` (default) | Eisel–Lemire 64-bit + bignum fallback                    | yes  |
 | `wuffs`              | Wuffs `parse_number_f64` — Eisel–Lemire + HPD              | **no** |
 | `stock`              | libc `strtod` via floatium's wrapper                       | no   |
+
+For a true stock-CPython baseline on the format side, call
+`floatium.uninstall()` — there is no `stock` format backend, because
+backends speak the dtoa digit-string contract and stock CPython's
+formatter produces a packaged string directly. The parse side does
+have a `stock` backend (libc `strtod`) because libc happens to
+match the contract.
 
 `ryu_opt` paired with `wuffs` gives fully pure-C operation — zero C++
 on either the format or parse path:
@@ -143,6 +149,12 @@ vendored files have algorithmic local modifications. Trivial mods:
 - Wuffs: vendored as a single-header float-parsing subset of the
   upstream Wuffs release (`floatconv_wuffs.h`); the extraction details
   are in `third_party/wuffs/README.vendor`.
+
+License filenames follow each upstream's convention rather than a
+single house style (e.g. fast_float ships `LICENSE-APACHE` uppercase,
+Ryu ships `LICENSE-Apache` mixed case). Keeping the upstream casing
+makes the bytes copied here trivially comparable to what's on each
+project's GitHub.
 
 The C++ adapter shims that bridge these libraries to CPython's
 formatting/parsing contracts (`fmt_dtoa.cc`, `fmt_opt_dtoa.cc`,
