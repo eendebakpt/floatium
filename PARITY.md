@@ -1,9 +1,9 @@
-# Behavioral differences vs. stock CPython
+# Parity with stock CPython
 
-The primary success metric for floatium is that CPython's own regression
-tests pass unchanged when run against a patched interpreter (Track A in
-the test strategy). This file records every observed divergence so the
-PEP discussion has them on the table up front.
+The primary success metric for floatium is bit-identical output to stock
+CPython on every input. CPython's own regression tests must pass unchanged
+when run against a patched interpreter (Track A in the test strategy).
+This file is the parity report — any observed divergence shows up here.
 
 ## Last verified
 

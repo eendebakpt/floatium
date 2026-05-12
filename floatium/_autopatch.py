@@ -1,42 +1,73 @@
 """Autopatch hook.
 
 This module is imported by the site-packages/floatium.pth file at
-interpreter startup. It inspects FLOATIUM_AUTOPATCH and installs the
-replacement slots if set.
+interpreter startup. Default behavior is to install floatium's
+replacement slots; opt-out is via:
 
-Rationale for gating on an env var rather than patching unconditionally:
-the .pth file mechanism affects *every* Python invocation that shares
-this site-packages directory, including tools that should not be
-affected (the build system, linters, etc.). Opt-in is safer for
-a process-global mutation.
+  * env var: ``FLOATIUM_AUTOPATCH=0`` (or false/no/off)
+  * CLI:     ``python -m floatium disable``  (creates a marker file
+             ``floatium-autopatch.disabled`` next to floatium.pth)
 
-Values that trigger install:
-    FLOATIUM_AUTOPATCH=1
-    FLOATIUM_AUTOPATCH=true
-    FLOATIUM_AUTOPATCH=yes
+The env var (when explicitly set) wins over the marker file, so
+ad-hoc opt-out works in CI even when the marker is absent. Set
+``FLOATIUM_AUTOPATCH_DEBUG=1`` to see install failures during startup.
 
-You can also specify backends:
-    FLOATIUM_FORMAT_BACKEND=fmt
-    FLOATIUM_PARSE_BACKEND=fast_float
+You can specify backends:
+
+  * ``FLOATIUM_FORMAT_BACKEND=fmt``
+  * ``FLOATIUM_PARSE_BACKEND=fast_float``
+
+History: floatium <= 0.12.1 required an explicit ``FLOATIUM_AUTOPATCH=1``
+to opt in. v0.13.0 flipped the default to opt-out.
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 
-def _truthy(v: str | None) -> bool:
+_MARKER_NAME = "floatium-autopatch.disabled"
+
+
+def _env_override() -> bool | None:
+    """Parse FLOATIUM_AUTOPATCH; return True/False/None (unset or garbage)."""
+    v = os.environ.get("FLOATIUM_AUTOPATCH")
     if v is None:
+        return None
+    s = v.strip().lower()
+    if s in {"1", "true", "yes", "on"}:
+        return True
+    if s in {"0", "false", "no", "off"}:
         return False
-    return v.strip().lower() in {"1", "true", "yes", "on"}
+    return None
+
+
+def _marker_present() -> bool:
+    """True if the disable-marker exists in this install's site-packages."""
+    # __file__ is .../site-packages/floatium/_autopatch.py
+    # The marker sits next to floatium.pth, which is .../site-packages/
+    try:
+        sp = Path(__file__).resolve().parent.parent
+        return (sp / _MARKER_NAME).is_file()
+    except Exception:  # noqa: BLE001 — never break startup
+        return False
+
+
+def _should_autopatch() -> bool:
+    explicit = _env_override()
+    if explicit is not None:
+        return explicit
+    return not _marker_present()
 
 
 def _run() -> None:
-    if not _truthy(os.environ.get("FLOATIUM_AUTOPATCH")):
+    if not _should_autopatch():
         return
 
     # Import lazily so that merely having the .pth on disk doesn't drag the
-    # C extension into every Python process — only into ones that opt in.
+    # C extension into every Python process — only into ones where autopatch
+    # actually fires.
     try:
         from floatium import install
     except ImportError:
@@ -48,7 +79,12 @@ def _run() -> None:
     try:
         install(format_backend=fmt_backend, parse_backend=parse_backend)
     except Exception:  # noqa: BLE001 — never break interpreter startup
-        if _truthy(os.environ.get("FLOATIUM_AUTOPATCH_DEBUG")):
+        if os.environ.get("FLOATIUM_AUTOPATCH_DEBUG", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
             import traceback
 
             traceback.print_exc()

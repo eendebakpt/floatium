@@ -1,0 +1,48 @@
+Wuffs — Wrangling Untrusted File Formats Safely
+================================================
+
+Upstream:    https://github.com/google/wuffs
+Source:      release/c/wuffs-v0.3.c (string-to-double subset)
+Commit:      988af1c03c6a23f3a90bd5f2c8529fd3cfa8daeb
+License:     Apache-2.0 OR MIT (see LICENSE-Wuffs)
+
+Files vendored
+--------------
+floatconv_wuffs.h    Single-header extract of Wuffs' float parser
+                     (parse_number_f64 + HPD + Eisel-Lemire). ~2360 LOC.
+LICENSE-Wuffs        Combined Apache-2.0 + MIT license text.
+
+Used by which backends
+----------------------
+wuffs (parse)        — pure-C alternative to fast_float; pair with
+                       format_backend=ryu_opt for fully zero-C++
+                       operation on the float-formatting / parsing path.
+
+Algorithm
+---------
+Eisel-Lemire fast path (~99.9999% of inputs) with High Precision
+Decimal (HPD) fallback for the rest. No bigint, no dynamic allocation,
+no platform strtod dependency. Correctly rounded for every input.
+
+The bridge between Wuffs and CPython's `_Py_dg_strtod` calling
+convention is src/cpython_adapter/{pystrtod_wuffs.h,wuffs_strtod.cc}.
+
+Local modifications
+-------------------
+The header itself has substantial local modifications relative to
+upstream Wuffs's full release headers — but they are vendoring-time
+extractions, not algorithmic changes. From the file header:
+
+  1. Removed all code outside string-to-double parsing.
+  2. Added self-contained type definitions and utility inlines.
+  3. Replaced WUFFS_BASE__MAYBE_STATIC with static.
+  4. Replaced extern const char declarations with static definitions.
+  5. Added _MSC_VER/_M_X64 branch to multiply_u64 and clz_u64.
+  6. No algorithmic changes.
+
+These edits are tracked by the dtoa_wuff branch on
+https://github.com/eendebakpt/cpython and synced here verbatim.
+
+Regeneration: tools/sync_wuffs.sh (default: copies from the
+~/cpython0@dtoa_wuff vendored copy, which is the source of truth
+until upstream Wuffs ships an equivalent single-header extract).

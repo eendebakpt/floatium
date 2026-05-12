@@ -11,7 +11,7 @@ Mechanism:
 
 If a test fails, that is a real divergence from stock CPython behavior.
 We capture failures here rather than papering over them — they go into
-DIFFERENCES.md so the PEP discussion has them up front.
+PARITY.md so the PEP discussion has them up front.
 
 Default test set: everything with meaningful float I/O in its name.
 

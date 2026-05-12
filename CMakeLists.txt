@@ -13,14 +13,15 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #                           for %f — zero C++ in the format path),
 #                 stock    (CPython dtoa baseline),
 #                 all.
-# Parse backend:  fast_float (default), stock, all.
+# Parse backend:  fast_float (default), wuffs (pure-C Eisel-Lemire + HPD),
+#                 stock     (libc strtod via floatium's wrapper), all.
 #
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
 set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, stock, all")
-set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, stock, all")
+set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, stock, all")
 set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt stock all)
-set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float stock all)
+set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs stock all)
 
 # --- Python -----------------------------------------------------------------
 # scikit-build-core passes Python3_EXECUTABLE via the FindPython hint file.
@@ -32,7 +33,6 @@ set(FLOATIUM_SRCS
     src/slots.cc
     src/format_short.cc
     src/backends/registry.cc
-    src/cpython_adapter/fast_float_strtod.cc
 )
 
 # Compile-in backends based on selection. Default selection is made in
@@ -70,8 +70,18 @@ if(FLOATIUM_FORMAT_BACKEND STREQUAL "stock" OR FLOATIUM_FORMAT_BACKEND STREQUAL 
     set(FLOATIUM_HAS_STOCK_FORMAT 1)
 endif()
 if(FLOATIUM_PARSE_BACKEND STREQUAL "fast_float" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
-    list(APPEND FLOATIUM_SRCS src/backends/fast_float_parse.cc)
+    list(APPEND FLOATIUM_SRCS
+        src/backends/fast_float_parse.cc
+        src/cpython_adapter/fast_float_strtod.cc
+    )
     set(FLOATIUM_HAS_FAST_FLOAT_PARSE 1)
+endif()
+if(FLOATIUM_PARSE_BACKEND STREQUAL "wuffs" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
+    list(APPEND FLOATIUM_SRCS
+        src/backends/wuffs_parse.cc
+        src/cpython_adapter/wuffs_strtod.cc
+    )
+    set(FLOATIUM_HAS_WUFFS_PARSE 1)
 endif()
 if(FLOATIUM_PARSE_BACKEND STREQUAL "stock" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
     list(APPEND FLOATIUM_SRCS src/backends/stock_parse.cc)
@@ -92,6 +102,7 @@ target_include_directories(_ext PRIVATE
     third_party/fmt
     third_party/fast_float
     third_party/ryu
+    third_party/wuffs
 )
 
 # Match the build flags the CPython fmt-fastfloat branch uses for the
@@ -135,6 +146,7 @@ target_compile_definitions(_ext PRIVATE
     $<$<BOOL:${FLOATIUM_HAS_RYU_OPT_FORMAT}>:FLOATIUM_HAS_RYU_OPT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_FORMAT}>:FLOATIUM_HAS_STOCK_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FAST_FLOAT_PARSE}>:FLOATIUM_HAS_FAST_FLOAT_PARSE=1>
+    $<$<BOOL:${FLOATIUM_HAS_WUFFS_PARSE}>:FLOATIUM_HAS_WUFFS_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_PARSE}>:FLOATIUM_HAS_STOCK_PARSE=1>
     FLOATIUM_DEFAULT_FORMAT_BACKEND="${FLOATIUM_DEFAULT_FORMAT}"
     FLOATIUM_DEFAULT_PARSE_BACKEND="${FLOATIUM_DEFAULT_PARSE}"

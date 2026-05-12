@@ -10,7 +10,7 @@ Track B lives here as a fallback for two scenarios:
      subset of the tests.
 
   2. floatium intentionally diverges from stock (none today; see
-     DIFFERENCES.md). Vendored tests can encode the intentional
+     PARITY.md). Vendored tests can encode the intentional
      divergence with explicit xfail markers.
 
 This conftest installs floatium for every test in this directory.

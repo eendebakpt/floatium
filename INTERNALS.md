@@ -11,8 +11,8 @@ see the [README](README.md) first.
 {'patched': True,
  'format_backend': 'fmt_opt',
  'parse_backend': 'fast_float',
- 'available_format_backends': 'fmt_opt',
- 'available_parse_backends': 'fast_float',
+ 'available_format_backends': 'fmt,fmt_opt,ryu_opt,stock',
+ 'available_parse_backends': 'fast_float,wuffs,stock',
  'default_format_backend': 'fmt_opt',
  'default_parse_backend': 'fast_float'}
 ```
@@ -24,33 +24,69 @@ Fields:
 - `available_*` — what was compiled into this wheel.
 - `default_*` — what `install()` picks if no backend is requested.
 
-## Library provenance
+`python -m floatium info` prints the same as a quick CLI view, plus
+the package version.
 
-- `{fmt}` (`third_party/fmt/`, ~9.4k LOC vendored) — MIT, header-only.
-  Ships Dragonbox + the format grammar + fallbacks in one upstream.
-- `fast_float` (`third_party/fast_float/`) — Apache-2.0 / MIT / Boost-1.0
-  triple-licensed, header-only, C++11. Used in Chromium, Apache Arrow,
-  ClickHouse, folly, DuckDB.
-- Ryu `d2fixed` (`third_party/ryu/`) — Apache-2.0 / Boost-1.0
-  dual-licensed. Only the `d2fixed` entry point is vendored
-  (~100 KB of pow10 tables); the shortest-format code paths are
-  redundant with fmt's Dragonbox.
+## Backend matrix
 
-All three are redistribution-compatible with floatium's MIT license.
+All format backends produce bit-identical output. Pick one at build
+time, or build all of them and switch at install time:
 
-## Format backends
+| Format backend       | Algorithm                                                  | C++? |
+|----------------------|------------------------------------------------------------|------|
+| `fmt_opt` (default)  | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3)     | yes  |
+| `fmt`                | `{fmt}` Dragonbox + `fmt::detail::format_float`            | yes  |
+| `ryu_opt`            | Ryu `d2s` (mode 0) + `d2exp` (mode 2) + `d2fixed` (mode 3) | **no** |
+| `stock`              | marker — uninstalls and uses CPython's `dtoa.c`            | no   |
 
-Registered format backends (all produce output bit-identical to stock
-CPython):
+| Parse backend        | Algorithm                                                  | C++? |
+|----------------------|------------------------------------------------------------|------|
+| `fast_float` (default) | Eisel–Lemire 64-bit + bignum fallback                    | yes  |
+| `wuffs`              | Wuffs `parse_number_f64` — Eisel–Lemire + HPD              | **no** |
+| `stock`              | libc `strtod` via floatium's wrapper                       | no   |
 
-| name       | Uses                                          | When |
-|------------|-----------------------------------------------|------|
-| `fmt_opt`  | fmt Dragonbox + fmt fast subsegment + Ryu d2fixed | default |
-| `fmt`      | fmt Dragonbox + fmt `format_float` only       | A/B measurement |
-| `stock`    | calls back into `PyOS_double_to_string`       | regression baseline |
+`ryu_opt` paired with `wuffs` gives fully pure-C operation — zero C++
+on either the format or parse path:
 
-`fmt_opt` is the floatium default. For each `_Py_dg_dtoa` call it picks
-per mode:
+```python
+import floatium
+floatium.install(format_backend="ryu_opt", parse_backend="wuffs")
+```
+
+The `ryu_opt` adapter (mode dispatch, FP fast path for `%e`/`%g`,
+banker's rounding for `round(x, k)` with negative `k`) is ported from
+the [`rye_float`](https://github.com/eendebakpt/cpython/tree/rye_float)
+companion CPython branch — the in-tree pure-C demonstrator that drops
+`Python/dtoa.c`. The Wuffs parser is ported from the `dtoa_wuff`
+companion branch.
+
+## Build options
+
+Backends are CMake-selectable at build time. The defaults match what
+the wheel ships (`fmt_opt` + `fast_float`); to build other
+combinations:
+
+```bash
+# Build only the pure-C path (smaller wheel, no C++ in float I/O):
+pip install -e . \
+  -C cmake.define.FLOATIUM_FORMAT_BACKEND=ryu_opt \
+  -C cmake.define.FLOATIUM_PARSE_BACKEND=wuffs
+
+# Build every backend, switch at install time:
+pip install -e . \
+  -C cmake.define.FLOATIUM_FORMAT_BACKEND=all \
+  -C cmake.define.FLOATIUM_PARSE_BACKEND=all
+```
+
+With `all`, every compiled-in backend can be selected at runtime via:
+
+- `FLOATIUM_FORMAT_BACKEND` / `FLOATIUM_PARSE_BACKEND` env vars (read
+  by the autopatch hook).
+- `floatium.install(format_backend=..., parse_backend=...)` kwargs.
+
+## Format backend routing inside `fmt_opt`
+
+For each `_Py_dg_dtoa` call `fmt_opt` picks per mode:
 
 - **Mode 0 (shortest, drives `repr`)** — fmt's Dragonbox via
   `fmt::detail::dragonbox::to_decimal`.
@@ -67,22 +103,51 @@ per mode:
 The `exp2 ≤ 60` boundary mirrors fmt's internal cutoff: fmt falls into
 Dragon4 + bigint once the value's decade plus requested precision
 exceeds the 19-digit Dragonbox first segment, at which point it is
-2-6× slower than stock dtoa. log10(2) ≈ 0.30103 gives
+2–6× slower than stock dtoa. log10(2) ≈ 0.30103 gives
 exp2 ≈ 3.32 × decade, hence the integer inequality above.
 
-## Parse backend
+## Parse hook (dual-slot patching)
 
-Two parse backends are registered: `fast_float` (default) and `stock`
-(libc `strtod`, mainly for A/B comparison). `float(str)` is intercepted
-by swapping **both** `PyFloat_Type.tp_new` and
-`PyFloat_Type.tp_vectorcall`. The vectorcall slot is necessary because
-CPython 3.13+'s specializing interpreter quickens `float(s)` to the
-`CALL_BUILTIN_CLASS` opcode, which dispatches via `tp_vectorcall` —
-bypassing `tp_new`. Patching only `tp_new` would silently miss the
-common direct call shape; the wrapper handles both. Both wrappers UTF-8
-extract, strip whitespace, reject underscores / non-ASCII (those fall
-through to the saved original), null-terminate, and call the backend's
-`strtod`.
+`float(s)` is intercepted by swapping **both** `PyFloat_Type.tp_new`
+and `PyFloat_Type.tp_vectorcall`. The vectorcall slot is necessary
+because CPython 3.13+'s specializing interpreter quickens `float(s)`
+to the `CALL_BUILTIN_CLASS` opcode, which dispatches via
+`tp_vectorcall` — bypassing `tp_new`. Patching only `tp_new` would
+silently miss the common direct call shape; the wrapper handles both.
+
+Both wrappers UTF-8-extract the input, strip ASCII whitespace, reject
+underscores / non-ASCII (those fall through to the saved original),
+null-terminate into a stack buffer when possible, and call the
+backend's `strtod`. Subclasses of `str` and inputs that the backend
+can't consume in full also fall through to the saved original tp_new,
+which preserves CPython's exact semantics on the edges (`__float__`
+dispatch, `inf`/`nan` literals, etc.).
+
+## Vendored libraries
+
+All four libraries are vendored directly from upstream — pinned
+versions live in each `third_party/<lib>/README.vendor`:
+
+| Library | Upstream | Resync |
+|---|---|---|
+| [`{fmt}`](https://github.com/fmtlib/fmt) | `fmtlib/fmt` | `tools/sync_fmt.sh [/path/to/fmt]` |
+| [`fast_float`](https://github.com/fastfloat/fast_float) | `fastfloat/fast_float` | `tools/sync_fast_float.sh [/path/to/fast_float]` |
+| [`Ryu`](https://github.com/ulfjack/ryu) | `ulfjack/ryu` | `tools/sync_ryu.sh [/path/to/ryu]` |
+| [`Wuffs`](https://github.com/google/wuffs) | `google/wuffs` (via the `dtoa_wuff` extract on `eendebakpt/cpython`) | `tools/sync_wuffs.sh [/path/to/cpython0]` |
+
+Each script defaults to `~/<libname>` (Wuffs defaults to `~/cpython0`)
+and copies a fixed file set into `third_party/<lib>/`. None of the
+vendored files have algorithmic local modifications. Trivial mods:
+
+- Ryu: `#include "ryu/X"` → `#include "X"` (flattened directory).
+- Wuffs: vendored as a single-header float-parsing subset of the
+  upstream Wuffs release (`floatconv_wuffs.h`); the extraction details
+  are in `third_party/wuffs/README.vendor`.
+
+The C++ adapter shims that bridge these libraries to CPython's
+formatting/parsing contracts (`fmt_dtoa.cc`, `fmt_opt_dtoa.cc`,
+`fast_float_strtod.cc`, `ryu_opt_dtoa.cc`, `wuffs_strtod.cc`) live in
+`src/cpython_adapter/` as floatium-owned code.
 
 ## Backend abstraction
 
@@ -94,10 +159,7 @@ struct FloatiumFormatBackend { const char *name; floatium_dtoa_fn dtoa; ... };
 struct FloatiumParseBackend  { const char *name; floatium_strtod_fn strtod; };
 ```
 
-Swapping fmt for Ryu shortest or Schubfach is a new file in
-`src/backends/`. Swapping `fast_float` for double-conversion is another.
-Backends are CMake-selectable at build time
-(`-DFLOATIUM_FORMAT_BACKEND=...`, values `fmt_opt`, `fmt`, `stock`,
-`all`); when built with `all` every backend is compiled in and the
-active one is chosen via the `FLOATIUM_FORMAT_BACKEND` env var at
-interpreter startup or the `format_backend=` kwarg to `install()`.
+Swapping fmt for Schubfach or double-conversion is a new file in
+`src/backends/` plus a corresponding adapter in `src/cpython_adapter/`.
+The backend registry resolves names at install-time, so a wheel built
+with `all` can switch backends at runtime without rebuilding.

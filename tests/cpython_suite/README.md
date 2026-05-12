@@ -8,7 +8,7 @@ pytest and used as a fallback to the preferred Track A
 
 Today it's empty on purpose: **Track A passes every float-relevant
 stdlib test in the current CPython source tree without modification**
-(see `../../DIFFERENCES.md`). Vendoring test files ahead of a known
+(see `../../PARITY.md`). Vendoring test files ahead of a known
 divergence is unneeded duplication.
 
 When a future divergence is discovered:
@@ -23,7 +23,7 @@ When a future divergence is discovered:
 
 3. Mark the specific divergent case with
    `@pytest.mark.xfail(reason=..., strict=True)` and add an entry to
-   DIFFERENCES.md.
+   PARITY.md.
 
 4. Update the provenance block at the top of the vendored file:
 

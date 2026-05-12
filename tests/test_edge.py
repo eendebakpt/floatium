@@ -88,6 +88,60 @@ def test_large_integer_valued_float():
     assert "e" in s or s.endswith(".0") or "." in s
 
 
+def test_enabled_false_uninstalls_for_block():
+    # enabled(False) on a patched process should UN-patch for the block
+    # and restore on exit. Useful for measuring stock behavior with
+    # autopatch on, or for hand-off to stock CPython inside a patched
+    # process.
+    assert floatium.is_patched()
+    with floatium.enabled(False):
+        assert not floatium.is_patched()
+    assert floatium.is_patched()
+
+
+def test_enabled_true_is_noop_when_already_patched():
+    # enabled(True) on an already-patched process should keep things
+    # patched and restore the same state on exit.
+    assert floatium.is_patched()
+    with floatium.enabled(True):
+        assert floatium.is_patched()
+    assert floatium.is_patched()
+
+
+def test_wuffs_parse_backend_if_available():
+    # Skip if wuffs wasn't compiled into this wheel.
+    info = floatium.info()
+    if "wuffs" not in info["available_parse_backends"].split(","):
+        pytest.skip("wuffs parse backend not compiled in")
+    # Switch to wuffs for this test and verify a representative tough corpus
+    # still parses bit-identical to stock CPython.
+    floatium.uninstall()
+    floatium.install(parse_backend="wuffs")
+    try:
+        tough = [
+            "0.30000000000000004", "0.1234567890123457",
+            "1.7976931348623155e308", "5e-324",
+            "1234567890.1234567", "+1.5", "-2e3",
+            "0.0", "-0.0",
+        ]
+        # Re-fetch each value via a subprocess running stock CPython
+        # to confirm bit-identical parse.
+        import subprocess, sys, os
+        env = os.environ.copy()
+        env["FLOATIUM_AUTOPATCH"] = "0"  # ensure subprocess is stock
+        for s in tough:
+            code = f"import sys; sys.stdout.write(repr(float({s!r})))"
+            expected = subprocess.run(
+                [sys.executable, "-c", code], env=env,
+                capture_output=True, text=True, check=True,
+            ).stdout
+            actual = repr(float(s))
+            assert actual == expected, f"wuffs parse divergence on {s!r}: {actual!r} vs stock {expected!r}"
+    finally:
+        floatium.uninstall()
+        floatium.install()  # restore the autopatch default
+
+
 def test_str_subclass_with_float_dunder():
     # Regression: float() on a str subclass with __float__ must call
     # __float__, not parse the string. Stock CPython's float_new_impl

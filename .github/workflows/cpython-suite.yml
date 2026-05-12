@@ -3,7 +3,7 @@ name: cpython-suite
 # Runs CPython's own stdlib regression tests against a floatium-patched
 # interpreter (Track A of the test strategy — see tests/cpython_suite/README.md).
 # If this workflow reports a failure, that's a real behavioral divergence
-# from stock CPython — the output should go into DIFFERENCES.md.
+# from stock CPython — the output should go into PARITY.md.
 #
 # Kept separate from ci.yml because each test run takes ~1 minute per
 # Python version and we don't want to block ordinary PRs on it.

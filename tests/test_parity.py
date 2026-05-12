@@ -7,7 +7,7 @@ Bit-identical output vs the stock dtoa build is the requirement; these
 tests reconfirm it against the interpreter the wheel actually runs on.
 
 Any failure here is either (a) a divergence we need to document in
-DIFFERENCES.md, or (b) a bug in our packaging layer (format_float_short
+PARITY.md, or (b) a bug in our packaging layer (format_float_short
 port). Report (a) upstream; fix (b) here.
 """
 
@@ -53,7 +53,7 @@ def _stock(expr: str) -> str:
 @pytest.mark.parametrize("x", _CORPUS)
 def test_repr_parity(x):
     stock = _stock(f"repr({x!r})")
-    with floatium.patched():
+    with floatium.enabled():
         ours = repr(x)
     assert ours == stock, f"repr({x!r}): ours={ours!r} stock={stock!r}"
 
@@ -61,7 +61,7 @@ def test_repr_parity(x):
 @pytest.mark.parametrize("x", _CORPUS)
 def test_str_parity(x):
     stock = _stock(f"str({x!r})")
-    with floatium.patched():
+    with floatium.enabled():
         ours = str(x)
     assert ours == stock, f"str({x!r}): ours={ours!r} stock={stock!r}"
 
@@ -73,7 +73,7 @@ def test_format_parity(x, spec):
     if spec == "r":
         pytest.skip("'r' is not a real format spec for __format__")
     stock = _stock(f"format({x!r}, {spec!r})")
-    with floatium.patched():
+    with floatium.enabled():
         ours = format(x, spec)
     assert ours == stock, (
         f"format({x!r}, {spec!r}): ours={ours!r} stock={stock!r}"
@@ -86,7 +86,7 @@ def test_format_parity(x, spec):
 ])
 def test_float_parse_parity(s):
     stock = _stock(f"repr(float({s!r}))")
-    with floatium.patched():
+    with floatium.enabled():
         ours = repr(float(s))
     assert ours == stock, f"float({s!r}): ours={ours!r} stock={stock!r}"
 
@@ -94,7 +94,7 @@ def test_float_parse_parity(s):
 def test_nan_inf_parity():
     for name in ["nan", "inf", "-inf", "+inf"]:
         stock = _stock(f"repr(float({name!r}))")
-        with floatium.patched():
+        with floatium.enabled():
             ours = repr(float(name))
         # NaN is parsed via the fallback (fast_float rejects inf/nan literals
         # with our no_infnan setting), so this tests the fallback too.
