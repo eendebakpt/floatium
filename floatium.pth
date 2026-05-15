@@ -1,1 +1,1 @@
-import floatium._autopatch
+import sys; exec("try:\n import floatium._autopatch\nexcept Exception:\n pass")

@@ -216,3 +216,41 @@ def test_cli_enable_when_already_enabled_is_noop():
     r = _run_cli("enable")
     assert r.returncode == 0
     assert "already enabled" in r.stdout
+
+
+def test_pth_hook_is_silent_in_subinterpreter():
+    """The autopatch .pth hook must not print errors in a subinterpreter.
+
+    floatium._ext is a process-global monkey-patch and deliberately does
+    not support subinterpreters. CPython stdlib tests (e.g. test_struct)
+    create subinterpreters, each of which runs site.py / the .pth hook;
+    the hook must fail silently there rather than letting an ImportError
+    escape to site.py (which would dump a traceback per subinterpreter).
+    """
+    try:
+        import _interpreters  # noqa: F401
+    except ImportError:
+        pytest.skip("subinterpreters not available on this build")
+
+    code = (
+        "import _interpreters as I\n"
+        "interp = I.create()\n"
+        "I.run_string(interp, 'x = repr(0.1)')\n"
+        "I.destroy(interp)\n"
+        "print('OK')\n"
+    )
+    # Child runs with autopatch ON (default) so the .pth fires in the
+    # subinterpreter. Any 'Error processing line' on stderr is a regression.
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert proc.stdout.strip() == "OK"
+    assert "Error processing line" not in proc.stderr, (
+        f"autopatch .pth leaked an error in a subinterpreter:\n{proc.stderr}"
+    )
+    assert "does not support loading in subinterpreters" not in proc.stderr, (
+        f"subinterpreter ImportError escaped the .pth hook:\n{proc.stderr}"
+    )

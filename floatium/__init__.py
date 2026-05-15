@@ -39,7 +39,7 @@ __all__ = [
     "__version__",
 ]
 
-__version__ = "0.13.2"
+__version__ = "0.14.0"
 
 
 def install(

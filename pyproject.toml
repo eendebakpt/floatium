@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "floatium"
-version = "0.13.2"
+version = "0.14.0"
 description = "Drop-in replacement for CPython float formatting/parsing, backed by {fmt} and fast_float. Demonstrator for a forthcoming CPython PEP."
 readme = "README.md"
 license = { text = "MIT" }
