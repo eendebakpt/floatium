@@ -40,14 +40,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pypa/cibuildwheel@v2.21
+      - uses: pypa/cibuildwheel@v3.4.1
         env:
-          # Keep most config in pyproject.toml; these flags are the ones
-          # cibuildwheel 2.21 requires at the env level to opt into
-          # free-threaded and prerelease CPython builds.
+          # Keep most config in pyproject.toml. CIBW_ENABLE opts into the
+          # interpreter families that are off by default: free-threaded
+          # builds (cp31Xt) and not-yet-final CPython (3.15). cibuildwheel
+          # 3.x replaces the old CIBW_FREE_THREADED_SUPPORT /
+          # CIBW_PRERELEASE_PYTHONS flags with this single knob, and — unlike
+          # 2.21 — ships interpreter configs for CPython 3.14 / 3.15 so the
+          # cp314-*/cp315-* entries in pyproject's build list resolve.
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_FREE_THREADED_SUPPORT: "True"
-          CIBW_PRERELEASE_PYTHONS: "True"
+          CIBW_ENABLE: "cpython-freethreading cpython-prerelease"
 
       - uses: actions/upload-artifact@v5
         with:

@@ -1,8 +1,8 @@
 Topic: faster float-to-string conversions
 
-To experiment with faster-string-to-float conversions there is now the [floatium](https://github.com/eendebakpt/floatium/) package.
-The package hot patches `repr(float)`, `f"{float:.3f`, etc. to be much faster.
-After `pip install floatium` the conversions are patched in cpython 3.14+ versions. Benchmarks on CPython 3.14.3:
+To experiment with faster float-to-string conversions there is now the [floatium](https://github.com/eendebakpt/floatium/) package.
+The package makes `repr(float)`, `str(float)`, `f"{x:.3f}"` and similar conversions much faster (and also speeds up `float(str)` parsing).
+Install it with `pip install floatium`. Benchmarks on CPython 3.14.3:
 
 | Corpus          | Operation       | Stock (ns) | floatium (ns) | Speedup |
 |-----------------|-----------------|-----------:|--------------:|--------:|
@@ -25,6 +25,6 @@ After `pip install floatium` the conversions are patched in cpython 3.14+ versio
 The package should be fully compatible with cpython.
 
 * Earlier discussion can be found at https://discuss.python.org/t/faster-float-string-conversion-ryu.
-*  Please report any bugs or differences on the github issue tracker, we will use it to improve the cpython unit tests.
+*  Please report any bugs or differences on the github issue tracker, we will use it to improve the cpython unit tests and the package
 * The microbenchmarks show significant improvements, but does this have impact on real-world cases? If so, please report it (github, here or via DM).
-* Will this be in cpython? Probably that will take some time. The backends implemented in `floatium` are either C++ (currently not supported in cpython) or slightly modifed versions of the packages (for performance reasons). For inclusion in cpython we probably need a fully compliant, fast, C implementation that fully replaces `dtoa.c`.
+* Will this be in cpython? Probably that will take some time. The backends implemented in `floatium` are either C++ (currently not supported in cpython) or slightly modifed versions of the packages (for performance reasons). For inclusion in cpython we probably need a fast, fully compliant, C based implementation that fully replaces `dtoa.c`.
