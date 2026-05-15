@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "floatium"
-version = "0.14.0"
+version = "0.14.1"
 description = "Drop-in replacement for CPython float formatting/parsing, backed by {fmt} and fast_float. Demonstrator for a forthcoming CPython PEP."
 readme = "README.md"
 license = { text = "MIT" }
@@ -51,7 +51,12 @@ FLOATIUM_FORMAT_BACKEND = "fmt_opt"
 FLOATIUM_PARSE_BACKEND = "fast_float"
 
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-* cp313t-* cp314-* cp314t-* cp315-* cp315t-*"
+# CPython 3.11–3.14, incl. free-threaded (cp313t / cp314t). 3.15 is not
+# listed: cibuildwheel 3.4.1 has no 3.15 in its interpreter catalog yet
+# and rejects a `cp315-*` selector outright. Add `cp315-* cp315t-*` here
+# (and bump cibuildwheel) once 3.15 reaches beta and cibuildwheel ships
+# configs for it; 3.15 users install from the sdist until then.
+build = "cp311-* cp312-* cp313-* cp313t-* cp314-* cp314t-*"
 skip = "*-musllinux_i686 pp*"
 test-extras = ["test"]
 test-command = "pytest {project}/tests -x -q --ignore={project}/tests/cpython_suite"
