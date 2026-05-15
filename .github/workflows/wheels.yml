@@ -43,12 +43,15 @@ jobs:
       - uses: pypa/cibuildwheel@v3.4.1
         env:
           # Build config lives in [tool.cibuildwheel] in pyproject.toml.
-          # No CIBW_ENABLE needed: in cibuildwheel 3.x free-threaded
-          # builds are a standard target (the cp31Xt selectors build
-          # directly; the old `cpython-freethreading` enable is
-          # deprecated), and the build list targets only released
-          # CPython (≤ 3.14), so no prerelease opt-in is required.
+          # cpython-freethreading is still required in cibuildwheel
+          # 3.4.1 for the cp313t / cp314t selectors — without it they
+          # fail with "Invalid build selector ... wasn't enabled". The
+          # token emits a deprecation warning (it is being renamed in a
+          # future cibuildwheel) but still works and is mandatory here.
+          # No cpython-prerelease: the build list is all released
+          # CPython (3.15 is omitted — 3.4.1 has no config for it).
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_ENABLE: cpython-freethreading
 
       - uses: actions/upload-artifact@v5
         with:
