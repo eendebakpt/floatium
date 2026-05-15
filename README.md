@@ -207,5 +207,6 @@ See [PARITY.md](PARITY.md) for the full list. Summary:
   which is under the **PSF License**. The port preserves the original
   attribution and is compatible with downstream MIT redistribution under
   the PSF license's permissive terms.
+- Name and vectorcall patching inspired by [copium](https://github.com/percolab/copium) (MIT).
 
 See `LICENSE` and the per-directory `LICENSE*` files.
