@@ -9,7 +9,6 @@ backend (`fast_float`, `wuffs`, `stock`).
 
 - **floatium:** 0.14.2, release build, all backends compiled in.
 - **CPython:** 3.14.3.
-- **Machine:** 13th Gen Intel Core i7-13650HX, Linux.
 - **Date:** 2026-05-16.
 - **Corpora:** the five canonical corpora from `bench/corpora.py` —
   `random_uniform`, `random_bits`, `financial`, `scientific`,
