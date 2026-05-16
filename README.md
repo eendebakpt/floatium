@@ -80,6 +80,11 @@ inputs are short, integer-valued strings where dtoa's fast path and
 fast_float's Eisel–Lemire path both finish in tens of nanoseconds —
 there's not enough work to amortize either parser's setup cost.
 
+The table above is the default configuration. For the full
+per-backend matrix — `fmt_opt` / `fmt` / `ryu_opt` formatting and
+`fast_float` / `wuffs` / `stock` parsing — see
+[BENCHMARKS.md](BENCHMARKS.md).
+
 Run locally with:
 
 ```bash
