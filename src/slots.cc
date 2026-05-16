@@ -164,6 +164,18 @@ static PyObject *floatium_float_format(PyObject *self, PyObject *spec) {
     const char *utf = PyUnicode_AsUTF8AndSize(spec, &len);
     if (!utf) return nullptr;
 
+    // An empty format spec is, by definition, str(self) — and stock
+    // float.__format__ implements it that way. That matters for float
+    // *subclasses* with an overridden __str__ (e.g. ReprEnum float-mixin
+    // enum members): format(m) must dispatch to the subclass __str__,
+    // not format the numeric value. Formatting the value here would
+    // diverge from stock for those subclasses (CPython test_enum:
+    // test_overridden_str). For a plain float, PyObject_Str routes
+    // through the patched tp_repr, so output is unchanged.
+    if (len == 0) {
+        return PyObject_Str(self);
+    }
+
     char code = 0;
     int precision = 0;
     int flags = 0;

@@ -169,6 +169,44 @@ def test_str_subclass_without_float_dunder():
     assert float(PlainStr('-2e3')) == -2000.0
 
 
+def test_format_empty_spec_uses_str_on_float_subclass():
+    # format(x, "") is by definition str(x). For a float subclass with
+    # an overridden __str__, format() must dispatch to __str__ — not
+    # format the numeric value. Regression: floatium <= 0.14.2 returned
+    # the numeric form, which diverged from stock CPython (surfaced by
+    # test_enum.test_overridden_str in the full stdlib suite).
+    class F(float):
+        def __str__(self):
+            return "custom!"
+
+    x = F(4.4)
+    assert format(x, "") == "custom!"
+    assert format(x) == "custom!"
+    assert f"{x}" == "custom!"
+    # A plain float is unaffected — str(4.4) == "4.4".
+    assert format(4.4, "") == "4.4"
+    # A non-empty spec on the subclass still formats the value.
+    assert format(x, ".1f") == "4.4"
+
+
+def test_format_empty_spec_reprenum_float():
+    # The exact stdlib scenario: a ReprEnum float-mixin enum (the family
+    # behind IntEnum/StrEnum) with an overridden __str__. format(member)
+    # must follow __str__.
+    from enum import ReprEnum
+
+    class FloatEnum(float, ReprEnum):
+        first = 4.4
+        second = 5.5
+
+        def __str__(self):
+            return self.name.upper()
+
+    assert format(FloatEnum.first) == "FIRST"
+    assert format(FloatEnum.first, "") == "FIRST"
+    assert format(FloatEnum.second) == "SECOND"
+
+
 def test_round_trip_known_problem_values():
     # A pile of values that have historically caused trouble in dtoa
     # implementations. The goal here is just "round-trips"; we don't
