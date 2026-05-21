@@ -24,7 +24,6 @@ to opt in. v0.13.0 flipped the default to opt-out.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 
 _MARKER_NAME = "floatium-autopatch.disabled"
@@ -48,8 +47,8 @@ def _marker_present() -> bool:
     # __file__ is .../site-packages/floatium/_autopatch.py
     # The marker sits next to floatium.pth, which is .../site-packages/
     try:
-        sp = Path(__file__).resolve().parent.parent
-        return (sp / _MARKER_NAME).is_file()
+        sp = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        return os.path.isfile(os.path.join(sp, _MARKER_NAME))
     except Exception:  # noqa: BLE001 — never break startup
         return False
 

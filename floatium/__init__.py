@@ -24,9 +24,6 @@ site-packages), or temporarily with ``FLOATIUM_AUTOPATCH=0``. See
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Iterator
-
 from floatium import _ext
 
 __all__ = [
@@ -39,7 +36,7 @@ __all__ = [
     "__version__",
 ]
 
-__version__ = "0.14.3"
+__version__ = "0.14.4"
 
 
 def install(
@@ -77,12 +74,7 @@ def info() -> dict:
     return _ext.info()
 
 
-@contextmanager
-def enabled(
-    active: bool = True,
-    format_backend: str | None = None,
-    parse_backend: str | None = None,
-) -> Iterator[None]:
+class enabled:
     """Scoped patching/unpatching, restoring the entry state on exit.
 
     ``enabled(True)`` (the default) ensures floatium is installed within
@@ -104,34 +96,49 @@ def enabled(
     ``format_backend`` / ``parse_backend`` are forwarded to ``install``
     when ``active=True`` and floatium isn't already installed.
     """
-    was_patched = is_patched()
 
-    if active and not was_patched:
-        install(format_backend=format_backend, parse_backend=parse_backend)
-    elif not active and was_patched:
-        uninstall()
+    __slots__ = ("_active", "_format_backend", "_parse_backend", "_was_patched")
 
-    try:
-        yield
-    finally:
-        if was_patched and not is_patched():
-            install(format_backend=format_backend, parse_backend=parse_backend)
-        elif not was_patched and is_patched():
+    def __init__(
+        self,
+        active: bool = True,
+        format_backend: str | None = None,
+        parse_backend: str | None = None,
+    ) -> None:
+        self._active = active
+        self._format_backend = format_backend
+        self._parse_backend = parse_backend
+        self._was_patched = False
+
+    def __enter__(self) -> None:
+        self._was_patched = is_patched()
+        if self._active and not self._was_patched:
+            install(format_backend=self._format_backend, parse_backend=self._parse_backend)
+        elif not self._active and self._was_patched:
             uninstall()
+        return None
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._was_patched and not is_patched():
+            install(format_backend=self._format_backend, parse_backend=self._parse_backend)
+        elif not self._was_patched and is_patched():
+            uninstall()
+        return None
 
 
-@contextmanager
-def patched(
-    format_backend: str | None = None,
-    parse_backend: str | None = None,
-) -> Iterator[None]:
+class patched(enabled):
     """Deprecated alias for ``enabled(True, ...)``. Use ``enabled`` instead."""
-    import warnings
 
-    warnings.warn(
-        "floatium.patched() is deprecated since v0.13.0; use floatium.enabled() instead.",
-        DeprecationWarning,
-        stacklevel=3,
-    )
-    with enabled(True, format_backend=format_backend, parse_backend=parse_backend):
-        yield
+    def __init__(
+        self,
+        format_backend: str | None = None,
+        parse_backend: str | None = None,
+    ) -> None:
+        import warnings
+
+        warnings.warn(
+            "floatium.patched() is deprecated since v0.13.0; use floatium.enabled() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(True, format_backend=format_backend, parse_backend=parse_backend)
