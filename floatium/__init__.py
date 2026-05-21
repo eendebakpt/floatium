@@ -22,8 +22,6 @@ site-packages), or temporarily with ``FLOATIUM_AUTOPATCH=0``. See
 ``python -m floatium status`` for the current state.
 """
 
-from __future__ import annotations
-
 from floatium import _ext
 
 __all__ = [
@@ -36,7 +34,7 @@ __all__ = [
     "__version__",
 ]
 
-__version__ = "0.14.4"
+__version__ = "0.14.5"
 
 
 def install(

@@ -24,18 +24,11 @@
 
 #include <cstring>
 
-// Pre-3.12, `PyFloat_Type.tp_dict` is a valid borrowed reference. Starting
-// in 3.12 the field can be NULL until the dict is lazily materialized;
-// PyType_GetDict() is the supported way to reach it and returns a new
-// strong reference.
+// PyFloat_Type.tp_dict can be NULL until the dict is lazily materialized
+// (since CPython 3.12); PyType_GetDict() is the supported way to reach
+// it and returns a new strong reference.
 static inline PyObject *floatium_get_type_dict(PyTypeObject *tp) {
-#if PY_VERSION_HEX >= 0x030C0000
     return PyType_GetDict(tp);
-#else
-    PyObject *d = tp->tp_dict;
-    if (d) Py_INCREF(d);
-    return d;
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -367,9 +360,9 @@ int floatium_install(const FloatiumFormatBackend *fmt_b,
         return -1;
     }
 
-    // Use PyType_GetDict (3.12+): PyFloat_Type.tp_dict can be NULL since
-    // types now lazily materialize their dict. PyType_GetDict returns a new
-    // strong reference that we must DECREF.
+    // PyType_GetDict: PyFloat_Type.tp_dict can be NULL since types lazily
+    // materialize their dict. Returns a new strong reference that we must
+    // DECREF.
     PyObject *type_dict = floatium_get_type_dict(&PyFloat_Type);
     if (!type_dict) {
         PyErr_SetString(PyExc_RuntimeError,

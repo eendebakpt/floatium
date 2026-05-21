@@ -21,8 +21,6 @@ History: floatium <= 0.12.1 required an explicit ``FLOATIUM_AUTOPATCH=1``
 to opt in. v0.13.0 flipped the default to opt-out.
 """
 
-from __future__ import annotations
-
 import os
 
 
