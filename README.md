@@ -194,8 +194,11 @@ See [PARITY.md](PARITY.md) for the full list. Summary:
 - **Free-threaded builds.** Supported; patching must happen at import
   time (the only safe window). Method-cache invalidation uses
   `PyType_Modified()` except on 3.15 debug builds (where that call
-  asserts on static types), in which case the wrapper falls back to
-  writing `tp_version_tag = 0` directly.
+  asserts on static types), in which case the wrapper clears
+  `tp_version_tag` directly. Either way the type is immediately given a
+  fresh tag via `PyUnstable_Type_AssignVersionTag()`, because 3.15+
+  requires static builtin types to carry a non-zero tag whenever a
+  subinterpreter starts.
 - **`float("1_000.5")` and `float("inf")` take the fallback path.** Both
   parse correctly (output is bit-identical to stock) but don't benefit
   from `fast_float`'s speed.

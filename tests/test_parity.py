@@ -36,7 +36,7 @@ _CORPUS = [
 
 _FORMAT_SPECS = ["", ".2f", ".5f", ".0f", ".2e", ".5e", ".10e",
                  "g", "G", "e", "E", "f", "F",
-                 ".3g", ".6g", ".10g", "r"]
+                 ".3g", ".6g", ".10g"]
 
 
 def _stock(expr: str) -> str:
@@ -71,15 +71,35 @@ def test_str_parity(x):
 @pytest.mark.parametrize("x", _CORPUS)
 @pytest.mark.parametrize("spec", _FORMAT_SPECS)
 def test_format_parity(x, spec):
-    # Skip 'r' for floats where the built-in behaves oddly; not a real spec.
-    if spec == "r":
-        pytest.skip("'r' is not a real format spec for __format__")
     stock = _stock(f"format({x!r}, {spec!r})")
     with floatium.enabled():
         ours = format(x, spec)
     assert ours == stock, (
         f"format({x!r}, {spec!r}): ours={ours!r} stock={stock!r}"
     )
+
+
+@pytest.mark.parametrize("spec", ["r", ".2r", "r2"])
+@pytest.mark.parametrize("x", [0.0, 1.5, -2.5e100])
+def test_format_r_spec_raises_like_stock(x, spec):
+    # 'r' is not a float format code. Stock raises ValueError; floatium
+    # <= 0.14.5 answered with repr() instead (a parity bug). Compare the
+    # exception type and message, not just "raises".
+    import os
+    env = os.environ.copy()
+    env["FLOATIUM_AUTOPATCH"] = "0"
+    code = (
+        "import sys\n"
+        f"try:\n    format({x!r}, {spec!r})\n"
+        "except Exception as e:\n    sys.stdout.write(type(e).__name__ + ': ' + str(e))\n"
+        "else:\n    sys.stdout.write('no error')\n"
+    )
+    stock = subprocess.run([sys.executable, "-c", code], env=env,
+                           capture_output=True, text=True, check=True).stdout
+    assert stock.startswith("ValueError")
+    with floatium.enabled(), pytest.raises(ValueError) as ei:
+        format(x, spec)
+    assert f"ValueError: {ei.value}" == stock
 
 
 @pytest.mark.parametrize("s", [

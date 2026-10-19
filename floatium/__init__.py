@@ -84,7 +84,8 @@ class enabled:
             assert repr(0.1) == '0.1'
 
     ``enabled(False)`` is the inverse: it ensures floatium is NOT
-    installed within the block, then restores. Useful for measuring
+    installed within the block, then restores (with the backends that
+    were active on entry). Useful for measuring
     stock behavior from a process that has autopatch on, or for handing
     a single hot section to stock CPython::
 
@@ -95,7 +96,13 @@ class enabled:
     when ``active=True`` and floatium isn't already installed.
     """
 
-    __slots__ = ("_active", "_format_backend", "_parse_backend", "_was_patched")
+    __slots__ = (
+        "_active",
+        "_format_backend",
+        "_parse_backend",
+        "_prev_backends",
+        "_was_patched",
+    )
 
     def __init__(
         self,
@@ -107,9 +114,16 @@ class enabled:
         self._format_backend = format_backend
         self._parse_backend = parse_backend
         self._was_patched = False
+        self._prev_backends: tuple[str | None, str | None] = (None, None)
 
     def __enter__(self) -> None:
         self._was_patched = is_patched()
+        if self._was_patched:
+            # Remember which backends were active so that the exit path
+            # restores *those*, not the build defaults (floatium <= 0.14.5
+            # silently reset a ryu_opt/wuffs process to fmt_opt/fast_float).
+            state = info()
+            self._prev_backends = (state["format_backend"], state["parse_backend"])
         if self._active and not self._was_patched:
             install(format_backend=self._format_backend, parse_backend=self._parse_backend)
         elif not self._active and self._was_patched:
@@ -118,7 +132,8 @@ class enabled:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if self._was_patched and not is_patched():
-            install(format_backend=self._format_backend, parse_backend=self._parse_backend)
+            prev_format, prev_parse = self._prev_backends
+            install(format_backend=prev_format, parse_backend=prev_parse)
         elif not self._was_patched and is_patched():
             uninstall()
         return None

@@ -220,3 +220,54 @@ def test_round_trip_known_problem_values():
     ]
     for x in tough:
         assert float(repr(x)) == x, repr(x)
+
+
+def _non_default_backend(kind: str) -> str | None:
+    info = floatium.info()
+    default = info[f"default_{kind}_backend"]
+    others = [b for b in info[f"available_{kind}_backends"].split(",") if b != default]
+    return others[0] if others else None
+
+
+def test_enabled_false_restores_the_backends_that_were_active():
+    # Regression: floatium <= 0.14.5 re-installed the *build defaults* on
+    # exit, so a process running ryu_opt/wuffs silently came back as
+    # fmt_opt/fast_float after any enabled(False) block.
+    fb = _non_default_backend("format")
+    pb = _non_default_backend("parse")
+    if fb is None and pb is None:
+        pytest.skip("only the default backends are compiled in")
+    floatium.uninstall()
+    floatium.install(format_backend=fb, parse_backend=pb)
+    try:
+        expected = (floatium.info()["format_backend"], floatium.info()["parse_backend"])
+        with floatium.enabled(False):
+            assert not floatium.is_patched()
+        info = floatium.info()
+        assert floatium.is_patched()
+        assert (info["format_backend"], info["parse_backend"]) == expected
+    finally:
+        floatium.uninstall()
+        floatium.install()
+
+
+@pytest.mark.parametrize("s", [
+    "0x10", "0x1p3", "0X1A",          # hex floats: libc strtod accepts them
+    "nan(1)", "nan(abc)", "NAN()",     # nan(n-char-sequence): libc accepts
+    "1,5", "1.5,", ",5",               # locale decimal comma (de_DE etc.)
+    "1e5e5", "--1", "1e", "e5",
+])
+def test_every_parse_backend_rejects_non_decimal_syntax(s):
+    # The hook pre-screens the character set so that parity cannot depend
+    # on how permissive a backend's strtod is. The "stock" (libc) backend
+    # in floatium <= 0.14.5 let hex floats and nan(...) through, and
+    # under LC_NUMERIC=de_DE parsed "1,5" as 1.5.
+    for pb in floatium.info()["available_parse_backends"].split(","):
+        floatium.uninstall()
+        floatium.install(parse_backend=pb)
+        try:
+            with pytest.raises(ValueError):
+                float(s)
+        finally:
+            floatium.uninstall()
+    floatium.install()

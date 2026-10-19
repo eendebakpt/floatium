@@ -44,6 +44,40 @@ mkdir -p "$dest"
 git -C "$CP" show "$BRANCH:Python/_ryu/floatconv_wuffs.h" > "$dest/floatconv_wuffs.h"
 git -C "$CP" show "$BRANCH:Python/_ryu/LICENSE-Wuffs"     > "$dest/LICENSE-Wuffs"
 
+# Local fix (README.vendor, local modification 7; reported upstream):
+# integer-part digits beyond the 800-digit HPD cap must still advance
+# the decimal point. Fails loudly if the upstream hunk changed shape —
+# check whether upstream fixed it and drop this step if so.
+python3 - "$dest/floatconv_wuffs.h" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+s = p.read_text()
+old = (
+    "          dp = (int32_t)nd;\n"
+    "        } else if ('0' != *p) {\n"
+    "          // Long-tail non-zeroes set the truncated bit.\n"
+    "          h->truncated = true;\n"
+    "        }"
+)
+new = (
+    "          dp = (int32_t)nd;\n"
+    "        } else {\n"
+    "          // floatium-local fix (see README.vendor, local modification 7):\n"
+    "          // integer-part digits past the precision cap still shift the\n"
+    "          // decimal point, otherwise \"1\" + 800 zeros parses as 1e799.\n"
+    "          dp++;\n"
+    "          if ('0' != *p) {\n"
+    "            // Long-tail non-zeroes set the truncated bit.\n"
+    "            h->truncated = true;\n"
+    "          }\n"
+    "        }"
+)
+if s.count(old) != 1:
+    sys.exit("sync_wuffs: HPD integer-digit hunk not found exactly once; "
+             "upstream may have changed (or fixed) it — review by hand")
+p.write_text(s.replace(old, new))
+PY
+
 # Adapter (pystrtod_wuffs.h): apply the only local mod — rewrite
 # `#include "_ryu/floatconv_wuffs.h"` → `#include "floatconv_wuffs.h"`
 # so it resolves against floatium's flatter third_party/wuffs/ layout.

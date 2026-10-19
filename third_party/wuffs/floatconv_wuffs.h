@@ -1024,9 +1024,15 @@ wuffs_private_impl__high_prec_dec__parse(wuffs_private_impl__high_prec_dec* h,
         if (nd < WUFFS_PRIVATE_IMPL__HPD__DIGITS_PRECISION) {
           h->digits[nd++] = (uint8_t)(*p - '0');
           dp = (int32_t)nd;
-        } else if ('0' != *p) {
-          // Long-tail non-zeroes set the truncated bit.
-          h->truncated = true;
+        } else {
+          // floatium-local fix (see README.vendor, local modification 7):
+          // integer-part digits past the precision cap still shift the
+          // decimal point, otherwise "1" + 800 zeros parses as 1e799.
+          dp++;
+          if ('0' != *p) {
+            // Long-tail non-zeroes set the truncated bit.
+            h->truncated = true;
+          }
         }
       } else if (*p ==
                  ((options &
