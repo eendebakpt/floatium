@@ -2,7 +2,7 @@
 
 Nanoseconds per operation for `repr(float)`, fixed-precision f-string
 formatting, and `float(str)`, comparing stock CPython against every
-floatium format backend (`fmt_opt`, `fmt`, `ryu_opt`) and every parse
+floatium format backend (`fmt_opt`, `fmt`, `ryu_opt`, `zmij`) and every parse
 backend (`fast_float`, `wuffs`, `stock`).
 
 ## Methodology
@@ -30,20 +30,25 @@ backend (`fast_float`, `wuffs`, `stock`).
 ## Format backends
 
 `repr(x)` and `f"{x:.4f}"` over each corpus. Speedup is `stock / backend`;
-values above 1.00x are faster than stock.
+values above 1.00x are faster than stock. `zmij` is the pure-C
+single-library backend proposed for CPython; its `repr` carries a text
+re-read of ~10 ns that a to-decimal entry point in Żmij's C API would
+remove, and its fixed-precision path on huge magnitudes (`random_bits`)
+is bigint-based and ~2x slower than Ryu's `d2fixed`, while still 4x
+faster than stock.
 
-| Corpus | Operation | Stock (ns) | fmt_opt | fmt | ryu_opt | fmt_opt speedup | fmt speedup | ryu_opt speedup |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| random_uniform | `repr(x)` | 284.7 | 92.2 | 91.6 | 95.4 | 3.09x | 3.11x | 2.98x |
-| random_uniform | `f"{x:.4f}"` | 119.9 | 99.9 | 100.7 | 105.6 | 1.20x | 1.19x | 1.14x |
-| random_bits | `repr(x)` | 821.6 | 130.1 | 129.9 | 142.4 | 6.31x | 6.32x | 5.77x |
-| random_bits | `f"{x:.4f}"` | 1,933.9 | 196.8 | 5,532.8 | 215.1 | 9.83x | 0.35x | 8.99x |
-| financial | `repr(x)` | 171.0 | 75.0 | 73.8 | 101.2 | 2.28x | 2.32x | 1.69x |
-| financial | `f"{x:.4f}"` | 144.7 | 96.5 | 98.1 | 114.4 | 1.50x | 1.47x | 1.27x |
-| scientific | `repr(x)` | 638.4 | 127.2 | 127.3 | 138.5 | 5.02x | 5.02x | 4.61x |
-| scientific | `f"{x:.4f}"` | 1,078.7 | 161.4 | 2,969.0 | 173.4 | 6.68x | 0.36x | 6.22x |
-| integer_valued | `repr(x)` | 142.8 | 84.1 | 83.3 | 78.8 | 1.70x | 1.71x | 1.81x |
-| integer_valued | `f"{x:.4f}"` | 167.9 | 102.2 | 101.7 | 107.4 | 1.64x | 1.65x | 1.56x |
+| Corpus | Operation | Stock (ns) | fmt_opt | fmt | ryu_opt | zmij | fmt_opt speedup | fmt speedup | ryu_opt speedup | zmij speedup |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random_uniform | `repr(x)` | 284.0 | 90.8 | 89.5 | 91.5 | 102.9 | 3.13x | 3.17x | 3.10x | 2.76x |
+| random_uniform | `f"{x:.4f}"` | 119.2 | 100.0 | 100.2 | 104.4 | 109.4 | 1.19x | 1.19x | 1.14x | 1.09x |
+| random_bits | `repr(x)` | 819.9 | 131.2 | 128.5 | 143.0 | 154.3 | 6.25x | 6.38x | 5.73x | 5.31x |
+| random_bits | `f"{x:.4f}"` | 1,933.7 | 193.2 | 5,539.0 | 211.5 | 452.3 | 10.01x | 0.35x | 9.14x | 4.28x |
+| financial | `repr(x)` | 172.5 | 72.4 | 71.9 | 96.6 | 90.6 | 2.38x | 2.40x | 1.78x | 1.90x |
+| financial | `f"{x:.4f}"` | 144.6 | 97.1 | 96.0 | 115.9 | 113.8 | 1.49x | 1.51x | 1.25x | 1.27x |
+| scientific | `repr(x)` | 635.2 | 127.5 | 127.1 | 139.5 | 150.6 | 4.98x | 5.00x | 4.55x | 4.22x |
+| scientific | `f"{x:.4f}"` | 1,078.2 | 158.7 | 2,969.7 | 170.2 | 279.4 | 6.79x | 0.36x | 6.33x | 3.86x |
+| integer_valued | `repr(x)` | 142.1 | 83.4 | 81.2 | 78.2 | 94.0 | 1.70x | 1.75x | 1.82x | 1.51x |
+| integer_valued | `f"{x:.4f}"` | 167.3 | 99.2 | 101.5 | 108.1 | 108.1 | 1.69x | 1.65x | 1.55x | 1.55x |
 
 ## Parse backend
 
@@ -52,8 +57,8 @@ values above 1.00x are faster than stock.
 
 | Corpus | Operation | Stock (ns) | fast_float | wuffs | stock | fast_float speedup | wuffs speedup | stock speedup |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| random_uniform | `float(s)` | 125.6 | 46.0 | 57.0 | 108.5 | 2.73x | 2.20x | 1.16x |
-| random_bits | `float(s)` | 276.3 | 66.8 | 300.9 | 210.8 | 4.14x | 0.92x | 1.31x |
-| financial | `float(s)` | 36.8 | 37.6 | 41.9 | 78.5 | 0.98x | 0.88x | 0.47x |
-| scientific | `float(s)` | 213.6 | 63.8 | 74.1 | 185.4 | 3.35x | 2.88x | 1.15x |
-| integer_valued | `float(s)` | 43.2 | 44.0 | 47.5 | 69.1 | 0.98x | 0.91x | 0.63x |
+| random_uniform | `float(s)` | 121.0 | 46.6 | 56.9 | 109.1 | 2.60x | 2.13x | 1.11x |
+| random_bits | `float(s)` | 278.5 | 62.7 | 297.5 | 210.4 | 4.44x | 0.94x | 1.32x |
+| financial | `float(s)` | 36.7 | 36.6 | 41.6 | 78.5 | 1.00x | 0.88x | 0.47x |
+| scientific | `float(s)` | 212.5 | 57.1 | 68.0 | 186.2 | 3.72x | 3.13x | 1.14x |
+| integer_valued | `float(s)` | 43.0 | 42.8 | 47.6 | 68.0 | 1.01x | 0.90x | 0.63x |
