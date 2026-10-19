@@ -7,8 +7,8 @@ backend (`fast_float`, `wuffs`, `stock`).
 
 ## Methodology
 
-- **floatium:** 0.14.5 + branch `py315-fixes-revendor` (fmt 12.2.0,
-  fast_float v8.3.2), release build, all backends compiled in.
+- **floatium:** 0.15.0 (fmt 12.2.0, fast_float v8.3.2), release build,
+  all backends compiled in.
 - **CPython:** 3.14.3.
 - **Date:** 2026-10-19.
 - **Script:** `FLOATIUM_AUTOPATCH=0 python -m bench.bench_backend_matrix`.

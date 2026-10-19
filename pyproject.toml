@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "floatium"
-version = "0.14.5"
+version = "0.15.0"
 description = "Drop-in replacement for CPython float formatting/parsing, backed by {fmt} and fast_float. Demonstrator for a forthcoming CPython PEP."
 readme = "README.md"
 license = { text = "MIT" }
@@ -51,10 +51,9 @@ FLOATIUM_PARSE_BACKEND = "fast_float"
 [tool.cibuildwheel]
 # CPython 3.13–3.15, incl. free-threaded 3.14t / 3.15t. cibuildwheel 4.x
 # builds cp315 / cp315t (3.15.0 final) by default and needs no `enable`
-# flag for free-threaded 3.14+. cp313t is NOT in this list: cibuildwheel
-# 4.0 dropped the experimental 3.13 free-threaded builds, so wheels.yml
-# runs a second, pinned cibuildwheel 3.4.1 step with CIBW_BUILD=cp313t-*
-# to keep shipping 3.13t wheels.
+# flag for free-threaded 3.14+. No cp313t: cibuildwheel 4.0 dropped the
+# experimental 3.13 free-threaded builds (floatium <= 0.14.5 shipped
+# them via cibuildwheel 3.x); 3.13t users install from the sdist.
 build = "cp313-* cp314-* cp314t-* cp315-* cp315t-*"
 skip = "*-musllinux_i686 pp*"
 test-extras = ["test"]
