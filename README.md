@@ -56,25 +56,25 @@ lower is better) using floatium's default `fmt_opt` format backend +
 
 | Corpus          | Operation       | Stock (ns) | floatium (ns) | Speedup |
 |-----------------|-----------------|-----------:|--------------:|--------:|
-| random_uniform  | `repr(x)`       |        284 |            96 |   2.95× |
-| random_uniform  | `f"{x:.4f}"`    |        119 |           103 |   1.16× |
-| random_uniform  | `float(s)`      |        121 |            44 |   2.79× |
-| random_bits     | `repr(x)`       |        820 |           134 |   6.11× |
-| random_bits     | `f"{x:.4f}"`    |      1,933 |           196 |   9.86× |
-| random_bits     | `float(s)`      |        275 |            61 |   4.52× |
-| financial       | `repr(x)`       |        171 |            80 |   2.14× |
-| financial       | `f"{x:.4f}"`    |        145 |           101 |   1.43× |
-| financial       | `float(s)`      |         37 |            36 |   1.01× |
-| scientific      | `repr(x)`       |        640 |           135 |   4.74× |
-| scientific      | `f"{x:.4f}"`    |      1,081 |           161 |   6.71× |
-| scientific      | `float(s)`      |        212 |            58 |   3.64× |
-| integer_valued  | `repr(x)`       |        143 |            88 |   1.62× |
-| integer_valued  | `f"{x:.4f}"`    |        169 |           106 |   1.60× |
-| integer_valued  | `float(s)`      |         43 |            42 |   1.02× |
+| random_uniform  | `repr(x)`       |        285 |            89 |   3.19× |
+| random_uniform  | `f"{x:.4f}"`    |        119 |            99 |   1.20× |
+| random_uniform  | `float(s)`      |        121 |            47 |   2.61× |
+| random_bits     | `repr(x)`       |        818 |           129 |   6.33× |
+| random_bits     | `f"{x:.4f}"`    |      1,935 |           193 |  10.01× |
+| random_bits     | `float(s)`      |        276 |            67 |   4.12× |
+| financial       | `repr(x)`       |        170 |            73 |   2.33× |
+| financial       | `f"{x:.4f}"`    |        143 |            97 |   1.48× |
+| financial       | `float(s)`      |         37 |            38 |   0.97× |
+| scientific      | `repr(x)`       |        636 |           127 |   5.01× |
+| scientific      | `f"{x:.4f}"`    |      1,079 |           157 |   6.87× |
+| scientific      | `float(s)`      |        211 |            63 |   3.36× |
+| integer_valued  | `repr(x)`       |        143 |            83 |   1.73× |
+| integer_valued  | `f"{x:.4f}"`    |        167 |           103 |   1.63× |
+| integer_valued  | `float(s)`      |         43 |            43 |   0.99× |
 
 **Wins are largest on hard inputs.** `random_bits` and `scientific`
 corpora — values whose decimal expansion stresses dtoa's big-integer
-path — see 6–10× on `repr` / `f"{x:.4f}"` and 3.6–4.5× on `float(s)`.
+path — see 6–10× on `repr` / `f"{x:.4f}"` and 3.4–4.1× on `float(s)`.
 On `financial` and `integer_valued`, parse stays near 1× because the
 inputs are short, integer-valued strings where dtoa's fast path and
 fast_float's Eisel–Lemire path both finish in tens of nanoseconds —
