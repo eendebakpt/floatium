@@ -49,12 +49,13 @@ FLOATIUM_FORMAT_BACKEND = "fmt_opt"
 FLOATIUM_PARSE_BACKEND = "fast_float"
 
 [tool.cibuildwheel]
-# CPython 3.13–3.14, incl. free-threaded (cp313t / cp314t). 3.15 is not
-# listed: cibuildwheel 3.4.1 has no 3.15 in its interpreter catalog yet
-# and rejects a `cp315-*` selector outright. Add `cp315-* cp315t-*` here
-# (and bump cibuildwheel) once 3.15 reaches beta and cibuildwheel ships
-# configs for it; 3.15 users install from the sdist until then.
-build = "cp313-* cp313t-* cp314-* cp314t-*"
+# CPython 3.13–3.15, incl. free-threaded 3.14t / 3.15t. cibuildwheel 4.x
+# builds cp315 / cp315t (3.15.0 final) by default and needs no `enable`
+# flag for free-threaded 3.14+. cp313t is NOT in this list: cibuildwheel
+# 4.0 dropped the experimental 3.13 free-threaded builds, so wheels.yml
+# runs a second, pinned cibuildwheel 3.4.1 step with CIBW_BUILD=cp313t-*
+# to keep shipping 3.13t wheels.
+build = "cp313-* cp314-* cp314t-* cp315-* cp315t-*"
 skip = "*-musllinux_i686 pp*"
 test-extras = ["test"]
 test-command = "pytest {project}/tests -x -q --ignore={project}/tests/cpython_suite"
