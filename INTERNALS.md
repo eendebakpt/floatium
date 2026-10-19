@@ -11,7 +11,7 @@ see the [README](README.md) first.
 {'patched': True,
  'format_backend': 'fmt_opt',
  'parse_backend': 'fast_float',
- 'available_format_backends': 'fmt,fmt_opt,ryu_opt',
+ 'available_format_backends': 'fmt,fmt_opt,ryu_opt,zmij',
  'available_parse_backends': 'fast_float,wuffs,stock',
  'default_format_backend': 'fmt_opt',
  'default_parse_backend': 'fast_float'}
@@ -37,6 +37,7 @@ time, or build all of them and switch at install time:
 | `fmt_opt` (default)  | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3)     | yes  |
 | `fmt`                | `{fmt}` Dragonbox + `fmt::detail::format_float`            | yes  |
 | `ryu_opt`            | Ryu `d2s` (mode 0) + `d2exp` (mode 2) + `d2fixed` (mode 3) | **no** |
+| `zmij`               | Żmij C port for every mode (shortest + fixed/scientific, bigint above 18 digits) | **no** |
 
 | Parse backend        | Algorithm                                                  | C++? |
 |----------------------|------------------------------------------------------------|------|
@@ -51,13 +52,44 @@ formatter produces a packaged string directly. The parse side does
 have a `stock` backend (libc `strtod`) because libc happens to
 match the contract.
 
-`ryu_opt` paired with `wuffs` gives fully pure-C operation — zero C++
-on either the format or parse path:
+`zmij` or `ryu_opt` paired with `wuffs` gives fully pure-C operation —
+zero C++ on either the format or parse path:
 
 ```python
 import floatium
-floatium.install(format_backend="ryu_opt", parse_backend="wuffs")
+floatium.install(format_backend="zmij", parse_backend="wuffs")
 ```
+
+## The CPython candidate: `zmij` + `wuffs`
+
+`zmij` is the configuration floatium proposes for CPython itself, and
+it is built to be lifted out as-is:
+
+- One unmodified upstream library, [Żmij](https://github.com/vitaut/zmij)
+  (MIT or BSL-1.0), vendored as its C port (`zmij.c`, `zmij-c.h`). It
+  covers every `_Py_dg_dtoa` mode natively: shortest round-trip for
+  `repr`, and correctly rounded fixed / scientific output at any
+  precision for `%f` / `%e` / `%g` (a bigint path takes over above 18
+  digits). The shortest algorithm is formally verified upstream.
+- One adapter, `src/cpython_adapter/zmij_dtoa.c`: plain C11 with the
+  exact `_Py_dg_dtoa` signature and output contract, using nothing from
+  CPython but `PyMem_Malloc`. It re-reads Żmij's printf-style text into
+  dtoa's digits + `decpt` shape and implements the one thing printf has
+  no notion of — `round(x, -k)`, i.e. mode 3 with negative `ndigits` —
+  in ~90 lines of digit arithmetic. Copying it into `Python/` next to
+  `pystrtod.c` is the intended upgrade path.
+
+Two things would make the adapter smaller and are worth proposing to
+Żmij upstream (see `third_party/zmij/README.vendor`): a to-decimal
+entry point in the C API (significand + exponent, the shape Żmij
+already computes internally) so mode 0 needs no text round-trip, and
+`__asm__` instead of `asm` so `zmij.c` compiles under CPython's
+`-std=c11`.
+
+The parse side is independent of this: `_Py_dg_strtod` and
+`_Py_dg_dtoa` only share dtoa.c's bignum helpers. A format-only change
+can land first, but `dtoa.c` can only be deleted once string-to-float
+is replaced too; `wuffs` is the pure-C candidate for that half.
 
 The `ryu_opt` adapter (mode dispatch, FP fast path for `%e`/`%g`,
 banker's rounding for `round(x, k)` with negative `k`) is ported from
@@ -75,7 +107,7 @@ combinations:
 ```bash
 # Build only the pure-C path (smaller wheel, no C++ in float I/O):
 pip install -e . \
-  -C cmake.define.FLOATIUM_FORMAT_BACKEND=ryu_opt \
+  -C cmake.define.FLOATIUM_FORMAT_BACKEND=zmij \
   -C cmake.define.FLOATIUM_PARSE_BACKEND=wuffs
 
 # Build every backend, switch at install time:

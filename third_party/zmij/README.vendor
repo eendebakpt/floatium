@@ -1,0 +1,50 @@
+Żmij — fast floating-point-to-string conversion (C port)
+=========================================================
+
+Upstream:    https://github.com/vitaut/zmij
+Version:     v1.2-19-ga9d6363
+Commit:      a9d6363  (2026-10-18)
+License:     MIT OR BSL-1.0 (see LICENSE)
+
+Files vendored
+--------------
+zmij.c       — the complete C implementation: shortest round-trip
+               (Schubfach-family algorithm, formally verified in Lean
+               upstream), plus fixed / scientific / general precision
+               writers with a bigint path for precisions above 18.
+zmij-c.h     — public C API (zmij_write, zmij_write_fixed,
+               zmij_write_scientific, ...).
+LICENSE      — upstream license text.
+
+The C++ headers (zmij.h, zmij.cc, zmij-to-chars.h) are deliberately not
+vendored: the point of this backend is a pure-C float-formatting path
+that could be proposed for CPython itself.
+
+Used by which backends
+----------------------
+zmij — all three dtoa modes (0 shortest / 2 significant / 3 fixed,
+       including negative ndigits) via src/cpython_adapter/zmij_dtoa.c,
+       which is written as plain C against the _Py_dg_dtoa contract so
+       it can move into Python/ next to pystrtod.c unchanged.
+
+Build configuration
+-------------------
+    $(CC) -std=c11   (static_assert, stdbool; __int128 or _umul128)
+
+Local modifications
+-------------------
+None. The vendored files are byte-identical to upstream.
+
+Upstream requests (not yet filed)
+---------------------------------
+1. `asm` -> `__asm__` in the ZMIJ_ASM macro (zmij.c). With `-std=c11`,
+   which is what CPython compiles with, `asm` is not a keyword and the
+   three ZMIJ_ASM sites fail to compile. floatium builds with gnu11, so
+   it is unaffected; CPython would not be.
+2. A to-decimal entry point in the C API: `{sig, exp}` for the shortest
+   representation (the shape of zmij.c's internal to_decimal_result),
+   so a dtoa-style caller can skip writing and re-reading the text.
+   Optionally the same for fixed / scientific precision.
+3. `extern "C"` guards in zmij-c.h for inclusion from C++ TUs.
+
+Resync: tools/sync_zmij.sh

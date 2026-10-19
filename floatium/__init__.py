@@ -1,7 +1,7 @@
 """floatium — drop-in replacement for CPython float formatting/parsing.
 
 Backs float repr/str/__format__/__new__ with the {fmt} and fast_float C++
-libraries (or a pure-C combination of Ryu + Wuffs) to demonstrate the
+libraries (or a pure-C combination of Żmij or Ryu + Wuffs) to demonstrate the
 performance and correctness case for a forthcoming CPython PEP.
 
 Basic usage:

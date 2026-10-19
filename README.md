@@ -29,8 +29,8 @@ cd floatium
 pip install -e '.[test]'
 ```
 
-No system libraries are required; `{fmt}`, `fast_float`, Ryu, and
-Wuffs are all vendored. See [INTERNALS.md](INTERNALS.md) for the build
+No system libraries are required; `{fmt}`, `fast_float`, Ryu, Żmij,
+and Wuffs are all vendored. See [INTERNALS.md](INTERNALS.md) for the build
 options and backend matrix.
 
 ## Why this package exists
@@ -81,9 +81,11 @@ fast_float's Eisel–Lemire path both finish in tens of nanoseconds —
 there's not enough work to amortize either parser's setup cost.
 
 The table above is the default configuration. For the full
-per-backend matrix — `fmt_opt` / `fmt` / `ryu_opt` formatting and
-`fast_float` / `wuffs` / `stock` parsing — see
-[BENCHMARKS.md](BENCHMARKS.md).
+per-backend matrix — `fmt_opt` / `fmt` / `ryu_opt` / `zmij` formatting
+and `fast_float` / `wuffs` / `stock` parsing — see
+[BENCHMARKS.md](BENCHMARKS.md). The `zmij` + `wuffs` pair is the pure-C
+configuration floatium proposes for CPython itself; see
+[INTERNALS.md](INTERNALS.md#the-cpython-candidate-zmij--wuffs).
 
 Run locally with:
 
