@@ -42,6 +42,10 @@ extractions, not algorithmic changes. From the file header:
 
 Plus one floatium-local bug fix, re-applied by tools/sync_wuffs.sh:
 
+  8. The <intrin.h> include for the MSVC branches of multiply_u64 and
+     count_leading_zeroes_u64 sits at the top of the header; the extract
+     had it inside the function bodies, which MSVC rejects (system
+     headers cannot be included at block scope).
   7. high_prec_dec parse: integer-part digits beyond the 800-digit HPD
      cap now still advance the decimal point (`dp++`). Upstream (also in
      wuffs main as of 2026-10, 0.4.0-alpha.11) drops them, so e.g.

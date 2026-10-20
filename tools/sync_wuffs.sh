@@ -75,7 +75,21 @@ new = (
 if s.count(old) != 1:
     sys.exit("sync_wuffs: HPD integer-digit hunk not found exactly once; "
              "upstream may have changed (or fixed) it — review by hand")
-p.write_text(s.replace(old, new))
+s = s.replace(old, new)
+# README.vendor item 8: MSVC cannot include <intrin.h> at block scope, so
+# hoist the two in-function includes of the extract to the top.
+infn = "#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))\n#include <intrin.h>\n"
+if s.count(infn) != 2:
+    sys.exit("sync_wuffs: expected two in-function <intrin.h> includes")
+s = s.replace(infn, "#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))\n")
+top = "#include <string.h>   /* memcpy */\n"
+if s.count(top) != 1:
+    sys.exit("sync_wuffs: include block not found")
+s = s.replace(top, top + "#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))\n"
+    "#include <intrin.h>   /* _umul128, _BitScanReverse64 (floatium: hoisted out of\n"
+    "                         the function bodies below; a system header included\n"
+    "                         inside a function does not compile with MSVC) */\n#endif\n")
+p.write_text(s)
 PY
 
 # Adapter (pystrtod_wuffs.h): apply the only local mod — rewrite
