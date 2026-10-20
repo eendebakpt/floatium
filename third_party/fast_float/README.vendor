@@ -2,8 +2,8 @@ fast_float — Eisel-Lemire string-to-double parser
 =================================================
 
 Upstream:    https://github.com/fastfloat/fast_float
-Tag:         v8.2.5
-Commit:      05087a3  (2026-04-16)
+Tag:         v8.3.2
+Commit:      42f2548  (2026-10-09)
 License:     Apache-2.0 OR MIT OR BSL-1.0
              (see LICENSE-APACHE, LICENSE-MIT, LICENSE-BOOST)
 

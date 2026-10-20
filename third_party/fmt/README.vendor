@@ -2,8 +2,8 @@
 ==================================
 
 Upstream:    https://github.com/fmtlib/fmt
-Tag:         12.1.0
-Commit:      407c905  (2025-10-29)
+Tag:         12.2.0
+Commit:      1be298e1  (2026-06-16)
 License:     MIT (see LICENSE in this directory)
 
 Files vendored

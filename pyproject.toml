@@ -4,19 +4,17 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "floatium"
-version = "0.14.4"
-description = "Drop-in replacement for CPython float formatting/parsing, backed by {fmt} and fast_float. Demonstrator for a forthcoming CPython PEP."
+version = "0.16.0"
+description = "Drop-in replacement for CPython float formatting/parsing, backed by Żmij and ffc.h (pure C). Demonstrator for a forthcoming CPython PEP."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Pieter Eendebak", email = "pieter.eendebak@gmail.com" }]
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3.15",
@@ -24,7 +22,7 @@ classifiers = [
     "Programming Language :: C++",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["cpython", "float", "dtoa", "fmt", "fast_float", "repr", "format"]
+keywords = ["cpython", "float", "dtoa", "zmij", "ffc", "fmt", "fast_float", "repr", "format"]
 
 [project.urls]
 Homepage = "https://github.com/eendebakpt/floatium"
@@ -47,16 +45,16 @@ wheel.packages = ["floatium"]
 # files take effect.
 
 [tool.scikit-build.cmake.define]
-FLOATIUM_FORMAT_BACKEND = "fmt_opt"
-FLOATIUM_PARSE_BACKEND = "fast_float"
+FLOATIUM_FORMAT_BACKEND = "zmij"
+FLOATIUM_PARSE_BACKEND = "ffc"
 
 [tool.cibuildwheel]
-# CPython 3.11–3.14, incl. free-threaded (cp313t / cp314t). 3.15 is not
-# listed: cibuildwheel 3.4.1 has no 3.15 in its interpreter catalog yet
-# and rejects a `cp315-*` selector outright. Add `cp315-* cp315t-*` here
-# (and bump cibuildwheel) once 3.15 reaches beta and cibuildwheel ships
-# configs for it; 3.15 users install from the sdist until then.
-build = "cp311-* cp312-* cp313-* cp313t-* cp314-* cp314t-*"
+# CPython 3.13–3.15, incl. free-threaded 3.14t / 3.15t. cibuildwheel 4.x
+# builds cp315 / cp315t (3.15.0 final) by default and needs no `enable`
+# flag for free-threaded 3.14+. No cp313t: cibuildwheel 4.0 dropped the
+# experimental 3.13 free-threaded builds (floatium <= 0.14.5 shipped
+# them via cibuildwheel 3.x); 3.13t users install from the sdist.
+build = "cp313-* cp314-* cp314t-* cp315-* cp315t-*"
 skip = "*-musllinux_i686 pp*"
 test-extras = ["test"]
 test-command = "pytest {project}/tests -x -q --ignore={project}/tests/cpython_suite"
@@ -79,7 +77,7 @@ filterwarnings = ["error"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B", "SIM", "RUF"]

@@ -18,23 +18,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-14, windows-latest]
-        python: ["3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
-        exclude:
-          # 3.15 is still pre-release (alpha at time of writing) and the
-          # free-threaded Windows binary distributed via setup-python's
-          # python-versions repo has flaked here at least once
-          # (concurrent jobs racing for the same download). Re-add this
-          # cell once 3.15t has shipped a stable Windows release; until
-          # then ubuntu and macos provide free-threaded 3.15 coverage.
-          - os: windows-latest
-            python: "3.15t"
+        python: ["3.13", "3.14", "3.14t", "3.15", "3.15t"]
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
+          # Every entry is a final release (3.15.0 shipped 2026-10-09;
+          # setup-python's manifest carries 3.15 and 3.15t for all three
+          # OSes), so no allow-prereleases.
           python-version: ${{ matrix.python }}
-          allow-prereleases: true
 
       - name: Install build deps and package
         run: |
@@ -53,3 +46,40 @@ jobs:
         run: |
           python -m pytest tests/cpython_suite --tb=short || true
         shell: bash
+
+  test-all-backends:
+    # Every optional backend (fmt, ryu_opt, zmij, wuffs, ffc, stock) compiled
+    # in, so tests/test_backends.py can check each one against stock.
+    # The wheels only ship the defaults; this job is what keeps the
+    # others honest — and, on all three OSes, what proves the pure-C
+    # zmij.c / zmij_dtoa.c build with MSVC and Apple clang as well.
+    name: test / all backends / py3.14 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install with every backend compiled in
+        # bash on every OS: the default Windows shell is PowerShell, where
+        # the backslash continuations below are not line continuations.
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]" \
+            -C cmake.define.FLOATIUM_FORMAT_BACKEND=all \
+            -C cmake.define.FLOATIUM_PARSE_BACKEND=all
+
+      - name: Show info
+        run: |
+          python -c "import floatium; print(floatium.info())"
+
+      - name: Run unit + parity + edge + backend tests
+        run: |
+          python -m pytest tests -x --tb=short --ignore=tests/cpython_suite

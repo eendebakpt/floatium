@@ -31,6 +31,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>   /* memcpy */
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+#include <intrin.h>   /* _umul128, _BitScanReverse64 (floatium: hoisted out of
+                         the function bodies below; a system header included
+                         inside a function does not compile with MSVC) */
+#endif
 
 /* ---- Minimal Wuffs type definitions ---- */
 
@@ -79,7 +84,6 @@ wuffs_base__multiply_u64(uint64_t x, uint64_t y) {
     wuffs_base__multiply_u64__output o;
     o.lo = (uint64_t)z; o.hi = (uint64_t)(z >> 64); return o;
 #elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
-#include <intrin.h>
     wuffs_base__multiply_u64__output o;
     o.lo = _umul128(x, y, &o.hi); return o;
 #else
@@ -97,7 +101,6 @@ wuffs_base__count_leading_zeroes_u64(uint64_t u) {
     return u ? (uint32_t)__builtin_clzl(u) : 64u;
 }
 #elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
-#include <intrin.h>
 static inline uint32_t
 wuffs_base__count_leading_zeroes_u64(uint64_t u) {
     unsigned long idx;
@@ -1024,9 +1027,15 @@ wuffs_private_impl__high_prec_dec__parse(wuffs_private_impl__high_prec_dec* h,
         if (nd < WUFFS_PRIVATE_IMPL__HPD__DIGITS_PRECISION) {
           h->digits[nd++] = (uint8_t)(*p - '0');
           dp = (int32_t)nd;
-        } else if ('0' != *p) {
-          // Long-tail non-zeroes set the truncated bit.
-          h->truncated = true;
+        } else {
+          // floatium-local fix (see README.vendor, local modification 7):
+          // integer-part digits past the precision cap still shift the
+          // decimal point, otherwise "1" + 800 zeros parses as 1e799.
+          dp++;
+          if ('0' != *p) {
+            // Long-tail non-zeroes set the truncated bit.
+            h->truncated = true;
+          }
         }
       } else if (*p ==
                  ((options &

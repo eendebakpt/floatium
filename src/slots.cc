@@ -24,18 +24,11 @@
 
 #include <cstring>
 
-// Pre-3.12, `PyFloat_Type.tp_dict` is a valid borrowed reference. Starting
-// in 3.12 the field can be NULL until the dict is lazily materialized;
-// PyType_GetDict() is the supported way to reach it and returns a new
-// strong reference.
+// PyFloat_Type.tp_dict can be NULL until the dict is lazily materialized
+// (since CPython 3.12); PyType_GetDict() is the supported way to reach
+// it and returns a new strong reference.
 static inline PyObject *floatium_get_type_dict(PyTypeObject *tp) {
-#if PY_VERSION_HEX >= 0x030C0000
     return PyType_GetDict(tp);
-#else
-    PyObject *d = tp->tp_dict;
-    if (d) Py_INCREF(d);
-    return d;
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -88,9 +81,10 @@ static PyObject *floatium_float_repr(PyObject *v) {
 // demo we'd have to port all of that parsing code. That's on the roadmap;
 // for v0.1 we intercept the common fast path (type in {r, g, G, e, E, f,
 // F, empty} with optional precision, no fill/align/width/#/,/_) and
-// fall back to the original for anything complex. Every unit test we
-// ship checks this intercept is byte-identical to stock CPython on the
-// handled subset.
+// fall back to the original for anything complex (including anything
+// stock would reject, so error behaviour stays stock's). Every unit test
+// we ship checks this intercept is byte-identical to stock CPython on
+// the handled subset.
 
 static PyObject *original_format_call(PyObject *self, PyObject *spec) {
     // g_state.orig_format is a method descriptor (PyMethodDescrObject).
@@ -106,8 +100,11 @@ static PyObject *original_format_call(PyObject *self, PyObject *spec) {
 
 // Returns 1 if the spec is one of the simple forms we handle inline:
 //   ""                       -> repr
-//   "r"                      -> repr
 //   "[.precision]{g,G,e,E,f,F}"
+//
+// 'r' is deliberately NOT accepted: it is not a float format code and
+// stock float.__format__ raises ValueError on it (floatium <= 0.14.5
+// returned repr() — a parity bug).
 // Returns 0 and leaves *out_code / *out_precision untouched otherwise.
 static int parse_simple_spec(const char *spec, Py_ssize_t len,
                              char *out_code, int *out_precision,
@@ -139,12 +136,6 @@ static int parse_simple_spec(const char *spec, Py_ssize_t len,
     case 'g': case 'G': case 'e': case 'E': case 'f': case 'F':
         *out_code = t;
         *out_precision = precision < 0 ? 6 : precision;
-        return 1;
-    case 'r':
-        if (precision >= 0) return 0;
-        *out_code = 'r';
-        *out_precision = 0;
-        *out_flags = FLOATIUM_ADD_DOT_0;
         return 1;
     default:
         return 0;
@@ -258,13 +249,20 @@ static PyObject *parse_ascii_with_backend(const char *buf, Py_ssize_t len) {
     }
     if (len == 0) return nullptr;
 
-    // Reject strings containing chars we don't inline-handle (underscores,
-    // embedded whitespace, non-ASCII). The _Py_fast_float_strtod backend
-    // already stops at the first non-numeric char, but CPython's accepted
-    // "1_000.5" etc. which require stripping. Leave those to the original.
+    // Only hand the backend a string made of the characters a decimal
+    // float literal can contain. Everything else goes to the original
+    // tp_new: PEP 515 underscores ("1_000.5"), non-ASCII digits and
+    // whitespace (CPython transliterates those), hex floats, "inf" /
+    // "nan" / "nan(...)", locale decimal commas. This keeps parity
+    // independent of how permissive a backend's strtod is — libc strtod
+    // (the "stock" backend) accepts "0x10" and "nan(1)" and honours
+    // LC_NUMERIC, none of which float() does.
     for (Py_ssize_t i = 0; i < len; ++i) {
         unsigned char c = (unsigned char)buf[i];
-        if (c == '_' || c > 0x7f) return nullptr;
+        if (!((c >= '0' && c <= '9') || c == '.' || c == 'e' || c == 'E'
+              || c == '+' || c == '-')) {
+            return nullptr;
+        }
     }
 
     // Copy to a null-terminated buffer for strtod (backend doesn't take a
@@ -353,6 +351,26 @@ static PyObject *floatium_float_vectorcall(PyObject *type,
 // ---------------------------------------------------------------------------
 // install() / uninstall()
 // ---------------------------------------------------------------------------
+// Invalidate PyFloat_Type's method cache after swapping slots / __format__.
+//
+// PyType_Modified() is the supported call, but 3.15+ debug builds assert
+// against it on static builtin types (Objects/typeobject.c:
+// _PyType_Modified_Unlocked). Either path leaves tp_version_tag == 0
+// until the next attribute lookup — and 3.15+ requires static builtin
+// types to carry a non-zero tag at all times: init_static_type() asserts
+// it when a *subinterpreter* is created. So after invalidating, hand the
+// type a fresh tag straight away via the public unstable API (3.12+).
+// That is exactly what the lazy path would have assigned on the next
+// lookup, so semantics are unchanged; it just closes the window.
+static void floatium_invalidate_float_type(void) {
+#if PY_VERSION_HEX >= 0x030F0000 && defined(Py_DEBUG)
+    PyFloat_Type.tp_version_tag = 0;
+#else
+    PyType_Modified(&PyFloat_Type);
+#endif
+    (void)PyUnstable_Type_AssignVersionTag(&PyFloat_Type);
+}
+
 extern "C" {
 
 int floatium_install(const FloatiumFormatBackend *fmt_b,
@@ -367,9 +385,9 @@ int floatium_install(const FloatiumFormatBackend *fmt_b,
         return -1;
     }
 
-    // Use PyType_GetDict (3.12+): PyFloat_Type.tp_dict can be NULL since
-    // types now lazily materialize their dict. PyType_GetDict returns a new
-    // strong reference that we must DECREF.
+    // PyType_GetDict: PyFloat_Type.tp_dict can be NULL since types lazily
+    // materialize their dict. Returns a new strong reference that we must
+    // DECREF.
     PyObject *type_dict = floatium_get_type_dict(&PyFloat_Type);
     if (!type_dict) {
         PyErr_SetString(PyExc_RuntimeError,
@@ -420,21 +438,7 @@ int floatium_install(const FloatiumFormatBackend *fmt_b,
     PyFloat_Type.tp_new         = floatium_float_new;
     PyFloat_Type.tp_vectorcall  = floatium_float_vectorcall;
 
-    // Invalidate PyFloat_Type's method cache by clearing the version tag.
-    // PyType_Modified() asserts against static builtin types in debug builds
-    // (3.15+). Clearing tp_version_tag is the kernel of what PyType_Modified
-    // does for the mcache and is safe on static types. Subtypes of float
-    // (if any existed) would need their own invalidation, but nothing in
-    // stdlib subclasses float.
-    // PyType_Modified is the supported way to invalidate method caches,
-    // but 3.15 debug builds assert against it on static builtin types
-    // (Objects/typeobject.c:type_modified_unlocked). Use the version-tag
-    // trick there; use PyType_Modified everywhere else.
-#if PY_VERSION_HEX >= 0x030F0000 && defined(Py_DEBUG)
-    PyFloat_Type.tp_version_tag = 0;
-#else
-    PyType_Modified(&PyFloat_Type);
-#endif
+    floatium_invalidate_float_type();
 
     g_state.patched = true;
     return 0;
@@ -456,15 +460,7 @@ int floatium_uninstall(void) {
         Py_CLEAR(g_state.orig_format);
     }
 
-    // PyType_Modified is the supported way to invalidate method caches,
-    // but 3.15 debug builds assert against it on static builtin types
-    // (Objects/typeobject.c:type_modified_unlocked). Use the version-tag
-    // trick there; use PyType_Modified everywhere else.
-#if PY_VERSION_HEX >= 0x030F0000 && defined(Py_DEBUG)
-    PyFloat_Type.tp_version_tag = 0;
-#else
-    PyType_Modified(&PyFloat_Type);
-#endif
+    floatium_invalidate_float_type();
 
     g_state.tp_repr        = nullptr;
     g_state.tp_new         = nullptr;

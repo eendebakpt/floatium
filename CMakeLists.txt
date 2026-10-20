@@ -1,18 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 project(floatium LANGUAGES C CXX)
 
+set(CMAKE_C_STANDARD 11)              # zmij.c: static_assert, stdbool
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # --- Backend selection ------------------------------------------------------
-# Format backend: fmt_opt  (default — fmt for repr/exp, Ryu d2fixed for fixed),
+# Format backend: zmij     (default — pure-C Żmij for every mode; one unmodified
+#                           upstream library, the CPython-proposal backend),
+#                 fmt_opt  (fmt for repr/exp, Ryu d2fixed for fixed),
 #                 fmt      (plain fmt for everything, for A/B measurement),
 #                 ryu_opt  (pure-C: Ryu d2s for repr, d2exp for %e/%g, d2fixed
 #                           for %f — zero C++ in the format path),
 #                 all.
-# Parse backend:  fast_float (default), wuffs (pure-C Eisel-Lemire + HPD),
+# Parse backend:  ffc       (default — pure-C ffc.h, the C99 port of
+#                           fast_float; the CPython-proposal backend),
+#                 fast_float (the C++ original), wuffs (pure-C Eisel-Lemire + HPD),
 #                 stock     (libc strtod via floatium's wrapper), all.
 #
 # For a "stock CPython" format baseline, just `floatium.uninstall()` —
@@ -23,10 +29,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
-set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, all")
-set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, stock, all")
-set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt all)
-set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs stock all)
+# The defaults changed from fmt_opt + fast_float to zmij + ffc in 0.16.0:
+# the shipped wheel is now the exact pure-C configuration proposed for
+# CPython, so every user runs the candidate code.
+set(FLOATIUM_FORMAT_BACKEND "zmij" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, zmij, all")
+set(FLOATIUM_PARSE_BACKEND  "ffc" CACHE STRING "Parse backend: fast_float, wuffs, ffc, stock, all")
+set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt zmij all)
+set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs ffc stock all)
 
 # --- Python -----------------------------------------------------------------
 # scikit-build-core passes Python3_EXECUTABLE via the FindPython hint file.
@@ -66,6 +75,14 @@ if(FLOATIUM_FORMAT_BACKEND STREQUAL "ryu_opt" OR FLOATIUM_FORMAT_BACKEND STREQUA
     set(FLOATIUM_HAS_RYU_OPT_FORMAT 1)
     set(FLOATIUM_NEEDS_RYU_D2FIXED 1)
 endif()
+if(FLOATIUM_FORMAT_BACKEND STREQUAL "zmij" OR FLOATIUM_FORMAT_BACKEND STREQUAL "all")
+    list(APPEND FLOATIUM_SRCS
+        src/backends/zmij_format.cc
+        src/cpython_adapter/zmij_dtoa.c
+        third_party/zmij/zmij.c
+    )
+    set(FLOATIUM_HAS_ZMIJ_FORMAT 1)
+endif()
 # Ryu d2fixed.c is shared between fmt_opt and ryu_opt — compile it once.
 if(FLOATIUM_NEEDS_RYU_D2FIXED)
     list(APPEND FLOATIUM_SRCS third_party/ryu/d2fixed.c)
@@ -84,6 +101,13 @@ if(FLOATIUM_PARSE_BACKEND STREQUAL "wuffs" OR FLOATIUM_PARSE_BACKEND STREQUAL "a
     )
     set(FLOATIUM_HAS_WUFFS_PARSE 1)
 endif()
+if(FLOATIUM_PARSE_BACKEND STREQUAL "ffc" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
+    list(APPEND FLOATIUM_SRCS
+        src/backends/ffc_parse.cc
+        src/cpython_adapter/ffc_strtod.c
+    )
+    set(FLOATIUM_HAS_FFC_PARSE 1)
+endif()
 if(FLOATIUM_PARSE_BACKEND STREQUAL "stock" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
     list(APPEND FLOATIUM_SRCS src/backends/stock_parse.cc)
     set(FLOATIUM_HAS_STOCK_PARSE 1)
@@ -98,6 +122,8 @@ target_include_directories(_ext PRIVATE
     third_party/fast_float
     third_party/ryu
     third_party/wuffs
+    third_party/zmij
+    third_party/ffc
 )
 
 # Match the build flags the CPython fmt-fastfloat branch uses for the
@@ -128,19 +154,21 @@ endif()
 # wheel but still need a single default; prefer the optimized fmt-based one.
 set(FLOATIUM_DEFAULT_FORMAT "${FLOATIUM_FORMAT_BACKEND}")
 if(FLOATIUM_DEFAULT_FORMAT STREQUAL "all")
-    set(FLOATIUM_DEFAULT_FORMAT "fmt_opt")
+    set(FLOATIUM_DEFAULT_FORMAT "zmij")
 endif()
 set(FLOATIUM_DEFAULT_PARSE "${FLOATIUM_PARSE_BACKEND}")
 if(FLOATIUM_DEFAULT_PARSE STREQUAL "all")
-    set(FLOATIUM_DEFAULT_PARSE "fast_float")
+    set(FLOATIUM_DEFAULT_PARSE "ffc")
 endif()
 
 target_compile_definitions(_ext PRIVATE
     $<$<BOOL:${FLOATIUM_HAS_FMT_FORMAT}>:FLOATIUM_HAS_FMT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FMT_OPT_FORMAT}>:FLOATIUM_HAS_FMT_OPT_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_RYU_OPT_FORMAT}>:FLOATIUM_HAS_RYU_OPT_FORMAT=1>
+    $<$<BOOL:${FLOATIUM_HAS_ZMIJ_FORMAT}>:FLOATIUM_HAS_ZMIJ_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FAST_FLOAT_PARSE}>:FLOATIUM_HAS_FAST_FLOAT_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_WUFFS_PARSE}>:FLOATIUM_HAS_WUFFS_PARSE=1>
+    $<$<BOOL:${FLOATIUM_HAS_FFC_PARSE}>:FLOATIUM_HAS_FFC_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_PARSE}>:FLOATIUM_HAS_STOCK_PARSE=1>
     FLOATIUM_DEFAULT_FORMAT_BACKEND="${FLOATIUM_DEFAULT_FORMAT}"
     FLOATIUM_DEFAULT_PARSE_BACKEND="${FLOATIUM_DEFAULT_PARSE}"

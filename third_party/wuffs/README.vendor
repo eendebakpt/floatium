@@ -40,7 +40,20 @@ extractions, not algorithmic changes. From the file header:
   5. Added _MSC_VER/_M_X64 branch to multiply_u64 and clz_u64.
   6. No algorithmic changes.
 
-These edits are tracked by the dtoa_wuff branch on
+Plus one floatium-local bug fix, re-applied by tools/sync_wuffs.sh:
+
+  8. The <intrin.h> include for the MSVC branches of multiply_u64 and
+     count_leading_zeroes_u64 sits at the top of the header; the extract
+     had it inside the function bodies, which MSVC rejects (system
+     headers cannot be included at block scope).
+  7. high_prec_dec parse: integer-part digits beyond the 800-digit HPD
+     cap now still advance the decimal point (`dp++`). Upstream (also in
+     wuffs main as of 2026-10, 0.4.0-alpha.11) drops them, so e.g.
+     "1" + "0"*800 + "e-800" parses as 0.1 instead of 1.0, and any
+     decimal whose integer part exceeds 800 digits comes out 10^k too
+     small. Reported upstream; drop this hunk once Wuffs fixes it.
+
+Edits 1-6 are tracked by the dtoa_wuff branch on
 https://github.com/eendebakpt/cpython and synced here verbatim.
 
 Regeneration: tools/sync_wuffs.sh (default: copies from the
