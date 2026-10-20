@@ -1,7 +1,8 @@
 """floatium — drop-in replacement for CPython float formatting/parsing.
 
-Backs float repr/str/__format__/__new__ with the {fmt} and fast_float C++
-libraries (or a pure-C combination of Żmij + ffc.h) to demonstrate the
+Backs float repr/str/__format__/__new__ with the Żmij and ffc.h C libraries
+(the configuration proposed for CPython; {fmt}, fast_float, Ryu and Wuffs
+backends are available as alternatives) to demonstrate the
 performance and correctness case for a forthcoming CPython PEP.
 
 Basic usage:
@@ -34,7 +35,7 @@ __all__ = [
     "__version__",
 ]
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 
 def install(

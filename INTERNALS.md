@@ -9,12 +9,12 @@ see the [README](README.md) first.
 >>> import floatium
 >>> floatium.info()
 {'patched': True,
- 'format_backend': 'fmt_opt',
- 'parse_backend': 'fast_float',
+ 'format_backend': 'zmij',
+ 'parse_backend': 'ffc',
  'available_format_backends': 'fmt,fmt_opt,ryu_opt,zmij',
  'available_parse_backends': 'fast_float,wuffs,ffc,stock',
- 'default_format_backend': 'fmt_opt',
- 'default_parse_backend': 'fast_float'}
+ 'default_format_backend': 'zmij',
+ 'default_parse_backend': 'ffc'}
 ```
 
 Fields:
@@ -29,21 +29,23 @@ the package version.
 
 ## Backend matrix
 
-All format backends produce bit-identical output. Pick one at build
-time, or build all of them and switch at install time:
+All format backends produce bit-identical output. The wheel ships the
+`zmij` + `ffc` pair (the CPython candidate; the defaults were `fmt_opt`
++ `fast_float` before 0.16.0). Pick one at build time, or build all of
+them and switch at install time:
 
 | Format backend       | Algorithm                                                  | C++? |
 |----------------------|------------------------------------------------------------|------|
-| `fmt_opt` (default)  | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3)     | yes  |
+| `fmt_opt`            | `{fmt}` Dragonbox (modes 0/2) + Ryu `d2fixed` (mode 3)     | yes  |
 | `fmt`                | `{fmt}` Dragonbox + `fmt::detail::format_float`            | yes  |
 | `ryu_opt`            | Ryu `d2s` (mode 0) + `d2exp` (mode 2) + `d2fixed` (mode 3) | **no** |
-| `zmij`               | Żmij C port for every mode (shortest + fixed/scientific, bigint above 18 digits) | **no** |
+| `zmij` (default)     | Żmij C port for every mode (shortest + fixed/scientific, bigint above 18 digits) | **no** |
 
 | Parse backend        | Algorithm                                                  | C++? |
 |----------------------|------------------------------------------------------------|------|
-| `fast_float` (default) | Eisel–Lemire 64-bit + bignum fallback                    | yes  |
+| `fast_float`         | Eisel–Lemire 64-bit + bignum fallback (C++ original)      | yes  |
 | `wuffs`              | Wuffs `parse_number_f64` — Eisel–Lemire + HPD              | **no** |
-| `ffc`                | ffc.h, the C99 port of fast_float — same pipeline, no C++  | **no** |
+| `ffc` (default)      | ffc.h, the C99 port of fast_float — same pipeline, no C++  | **no** |
 | `stock`              | libc `strtod` via floatium's wrapper                       | no   |
 
 For a true stock-CPython baseline on the format side, call

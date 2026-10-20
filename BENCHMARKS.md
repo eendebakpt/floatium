@@ -7,8 +7,8 @@ backend (`fast_float`, `wuffs`, `ffc`, `stock`).
 
 ## Methodology
 
-- **floatium:** 0.15.0 (fmt 12.2.0, fast_float v8.3.2), release build,
-  all backends compiled in.
+- **floatium:** 0.16.0 (zmij a9d6363, ffc.h v26.09.01, fmt 12.2.0,
+  fast_float v8.3.2), release build, all backends compiled in.
 - **CPython:** 3.14.3.
 - **Date:** 2026-10-19.
 - **Script:** `FLOATIUM_AUTOPATCH=0 python -m bench.bench_backend_matrix`.

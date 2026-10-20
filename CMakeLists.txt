@@ -9,16 +9,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # --- Backend selection ------------------------------------------------------
-# Format backend: fmt_opt  (default — fmt for repr/exp, Ryu d2fixed for fixed),
+# Format backend: zmij     (default — pure-C Żmij for every mode; one unmodified
+#                           upstream library, the CPython-proposal backend),
+#                 fmt_opt  (fmt for repr/exp, Ryu d2fixed for fixed),
 #                 fmt      (plain fmt for everything, for A/B measurement),
 #                 ryu_opt  (pure-C: Ryu d2s for repr, d2exp for %e/%g, d2fixed
 #                           for %f — zero C++ in the format path),
-#                 zmij     (pure-C: Żmij for every mode — one unmodified
-#                           upstream library; the CPython-proposal backend),
 #                 all.
-# Parse backend:  fast_float (default), wuffs (pure-C Eisel-Lemire + HPD),
-#                 ffc       (pure-C: ffc.h, the C99 port of fast_float —
-#                           the CPython-proposal backend),
+# Parse backend:  ffc       (default — pure-C ffc.h, the C99 port of
+#                           fast_float; the CPython-proposal backend),
+#                 fast_float (the C++ original), wuffs (pure-C Eisel-Lemire + HPD),
 #                 stock     (libc strtod via floatium's wrapper), all.
 #
 # For a "stock CPython" format baseline, just `floatium.uninstall()` —
@@ -29,8 +29,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
-set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, zmij, all")
-set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, ffc, stock, all")
+# The defaults changed from fmt_opt + fast_float to zmij + ffc in 0.16.0:
+# the shipped wheel is now the exact pure-C configuration proposed for
+# CPython, so every user runs the candidate code.
+set(FLOATIUM_FORMAT_BACKEND "zmij" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, zmij, all")
+set(FLOATIUM_PARSE_BACKEND  "ffc" CACHE STRING "Parse backend: fast_float, wuffs, ffc, stock, all")
 set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt zmij all)
 set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs ffc stock all)
 
@@ -151,11 +154,11 @@ endif()
 # wheel but still need a single default; prefer the optimized fmt-based one.
 set(FLOATIUM_DEFAULT_FORMAT "${FLOATIUM_FORMAT_BACKEND}")
 if(FLOATIUM_DEFAULT_FORMAT STREQUAL "all")
-    set(FLOATIUM_DEFAULT_FORMAT "fmt_opt")
+    set(FLOATIUM_DEFAULT_FORMAT "zmij")
 endif()
 set(FLOATIUM_DEFAULT_PARSE "${FLOATIUM_PARSE_BACKEND}")
 if(FLOATIUM_DEFAULT_PARSE STREQUAL "all")
-    set(FLOATIUM_DEFAULT_PARSE "fast_float")
+    set(FLOATIUM_DEFAULT_PARSE "ffc")
 endif()
 
 target_compile_definitions(_ext PRIVATE

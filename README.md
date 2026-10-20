@@ -5,12 +5,13 @@
 [![License](https://img.shields.io/pypi/l/floatium.svg)](https://github.com/eendebakpt/floatium/blob/main/LICENSE)
 
 Experimental drop-in replacement for CPython's float formatting and parsing,
-backed by the [{fmt}](https://github.com/fmtlib/fmt) and
-[fast_float](https://github.com/fastfloat/fast_float) C++ libraries.
+backed by [Żmij](https://github.com/vitaut/zmij) and
+[ffc.h](https://github.com/kolemannix/ffc.h) (the C99 port of fast_float) —
+pure C, no C++ — in the exact configuration proposed for CPython itself.
 
 After `pip install floatium`, every subsequent Python process uses
-`{fmt}`'s Dragonbox for `repr(float)` / `str(float)` /
-`float.__format__` and `fast_float` for `float("...")`. Existing code,
+Żmij for `repr(float)` / `str(float)` / `float.__format__` and ffc.h
+for `float("...")`. Existing code,
 existing tests, existing output — just faster. Works with an unmodified
 stock CPython; no interpreter rebuild required.
 
@@ -51,33 +52,36 @@ divergences against CPython 3.15's stdlib test suite).
 
 Numbers below are from a release CPython 3.14.3 build
 (`python -m bench.bench_ns_per_op`, median of fastest third of samples,
-lower is better) using floatium's default `fmt_opt` format backend +
-`fast_float` parse backend:
+lower is better) using floatium's default `zmij` format backend +
+`ffc` parse backend:
 
 | Corpus          | Operation       | Stock (ns) | floatium (ns) | Speedup |
 |-----------------|-----------------|-----------:|--------------:|--------:|
-| random_uniform  | `repr(x)`       |        285 |            89 |   3.19× |
-| random_uniform  | `f"{x:.4f}"`    |        119 |            99 |   1.20× |
-| random_uniform  | `float(s)`      |        121 |            47 |   2.61× |
-| random_bits     | `repr(x)`       |        818 |           129 |   6.33× |
-| random_bits     | `f"{x:.4f}"`    |      1,935 |           193 |  10.01× |
-| random_bits     | `float(s)`      |        276 |            67 |   4.12× |
-| financial       | `repr(x)`       |        170 |            73 |   2.33× |
-| financial       | `f"{x:.4f}"`    |        143 |            97 |   1.48× |
+| random_uniform  | `repr(x)`       |        284 |           105 |   2.71× |
+| random_uniform  | `f"{x:.4f}"`    |        120 |           111 |   1.07× |
+| random_uniform  | `float(s)`      |        121 |            45 |   2.69× |
+| random_bits     | `repr(x)`       |        817 |           151 |   5.40× |
+| random_bits     | `f"{x:.4f}"`    |      1,933 |           453 |   4.27× |
+| random_bits     | `float(s)`      |        277 |            68 |   4.07× |
+| financial       | `repr(x)`       |        168 |            89 |   1.89× |
+| financial       | `f"{x:.4f}"`    |        144 |           114 |   1.26× |
 | financial       | `float(s)`      |         37 |            38 |   0.97× |
-| scientific      | `repr(x)`       |        636 |           127 |   5.01× |
-| scientific      | `f"{x:.4f}"`    |      1,079 |           157 |   6.87× |
-| scientific      | `float(s)`      |        211 |            63 |   3.36× |
-| integer_valued  | `repr(x)`       |        143 |            83 |   1.73× |
-| integer_valued  | `f"{x:.4f}"`    |        167 |           103 |   1.63× |
-| integer_valued  | `float(s)`      |         43 |            43 |   0.99× |
+| scientific      | `repr(x)`       |        639 |           147 |   4.34× |
+| scientific      | `f"{x:.4f}"`    |      1,080 |           281 |   3.84× |
+| scientific      | `float(s)`      |        213 |            64 |   3.33× |
+| integer_valued  | `repr(x)`       |        143 |            92 |   1.54× |
+| integer_valued  | `f"{x:.4f}"`    |        168 |           110 |   1.53× |
+| integer_valued  | `float(s)`      |         43 |            45 |   0.97× |
 
 **Wins are largest on hard inputs.** `random_bits` and `scientific`
 corpora — values whose decimal expansion stresses dtoa's big-integer
-path — see 6–10× on `repr` / `f"{x:.4f}"` and 3.4–4.1× on `float(s)`.
+path — see 4–5.4× on `repr` / `f"{x:.4f}"` and 3.3–4.1× on `float(s)`. The
+`fmt_opt` backend is faster still on `f"{x:.4f}"` for huge magnitudes
+(10× via Ryu `d2fixed`, see [BENCHMARKS.md](BENCHMARKS.md)); the default
+is `zmij` because one unmodified C library is what CPython can take.
 On `financial` and `integer_valued`, parse stays near 1× because the
 inputs are short, integer-valued strings where dtoa's fast path and
-fast_float's Eisel–Lemire path both finish in tens of nanoseconds —
+ffc.h's Eisel–Lemire path both finish in tens of nanoseconds —
 there's not enough work to amortize either parser's setup cost.
 
 The table above is the default configuration. For the full
@@ -203,11 +207,13 @@ See [PARITY.md](PARITY.md) for the full list. Summary:
   subinterpreter starts.
 - **`float("1_000.5")` and `float("inf")` take the fallback path.** Both
   parse correctly (output is bit-identical to stock) but don't benefit
-  from `fast_float`'s speed.
+  from the parser's speed.
 
 ## License
 
 - floatium wrapper code: **MIT**.
+- Żmij (vendored in `third_party/zmij/`): **MIT OR BSL-1.0**.
+- ffc.h (vendored in `third_party/ffc/`): **Apache-2.0 OR MIT OR BSL-1.0**.
 - `{fmt}` (vendored in `third_party/fmt/`): **MIT**.
 - `fast_float` (vendored in `third_party/fast_float/`): **Apache-2.0 OR
   MIT OR Boost-1.0**.
