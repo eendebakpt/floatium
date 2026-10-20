@@ -67,6 +67,9 @@ jobs:
           python-version: "3.14"
 
       - name: Install with every backend compiled in
+        # bash on every OS: the default Windows shell is PowerShell, where
+        # the backslash continuations below are not line continuations.
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test]" \
