@@ -3,7 +3,7 @@
 Nanoseconds per operation for `repr(float)`, fixed-precision f-string
 formatting, and `float(str)`, comparing stock CPython against every
 floatium format backend (`fmt_opt`, `fmt`, `ryu_opt`, `zmij`) and every parse
-backend (`fast_float`, `wuffs`, `stock`).
+backend (`fast_float`, `wuffs`, `ffc`, `stock`).
 
 ## Methodology
 
@@ -39,26 +39,29 @@ faster than stock.
 
 | Corpus | Operation | Stock (ns) | fmt_opt | fmt | ryu_opt | zmij | fmt_opt speedup | fmt speedup | ryu_opt speedup | zmij speedup |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| random_uniform | `repr(x)` | 284.0 | 90.8 | 89.5 | 91.5 | 102.9 | 3.13x | 3.17x | 3.10x | 2.76x |
-| random_uniform | `f"{x:.4f}"` | 119.2 | 100.0 | 100.2 | 104.4 | 109.4 | 1.19x | 1.19x | 1.14x | 1.09x |
-| random_bits | `repr(x)` | 819.9 | 131.2 | 128.5 | 143.0 | 154.3 | 6.25x | 6.38x | 5.73x | 5.31x |
-| random_bits | `f"{x:.4f}"` | 1,933.7 | 193.2 | 5,539.0 | 211.5 | 452.3 | 10.01x | 0.35x | 9.14x | 4.28x |
-| financial | `repr(x)` | 172.5 | 72.4 | 71.9 | 96.6 | 90.6 | 2.38x | 2.40x | 1.78x | 1.90x |
-| financial | `f"{x:.4f}"` | 144.6 | 97.1 | 96.0 | 115.9 | 113.8 | 1.49x | 1.51x | 1.25x | 1.27x |
-| scientific | `repr(x)` | 635.2 | 127.5 | 127.1 | 139.5 | 150.6 | 4.98x | 5.00x | 4.55x | 4.22x |
-| scientific | `f"{x:.4f}"` | 1,078.2 | 158.7 | 2,969.7 | 170.2 | 279.4 | 6.79x | 0.36x | 6.33x | 3.86x |
-| integer_valued | `repr(x)` | 142.1 | 83.4 | 81.2 | 78.2 | 94.0 | 1.70x | 1.75x | 1.82x | 1.51x |
-| integer_valued | `f"{x:.4f}"` | 167.3 | 99.2 | 101.5 | 108.1 | 108.1 | 1.69x | 1.65x | 1.55x | 1.55x |
+| random_uniform | `repr(x)` | 284.6 | 91.0 | 90.6 | 93.8 | 100.7 | 3.13x | 3.14x | 3.03x | 2.83x |
+| random_uniform | `f"{x:.4f}"` | 119.2 | 97.9 | 97.6 | 102.9 | 109.8 | 1.22x | 1.22x | 1.16x | 1.09x |
+| random_bits | `repr(x)` | 821.9 | 130.9 | 129.0 | 146.1 | 153.3 | 6.28x | 6.37x | 5.62x | 5.36x |
+| random_bits | `f"{x:.4f}"` | 1,936.1 | 193.6 | 5,550.4 | 213.6 | 452.8 | 10.00x | 0.35x | 9.07x | 4.28x |
+| financial | `repr(x)` | 169.5 | 73.5 | 73.5 | 99.2 | 89.3 | 2.30x | 2.31x | 1.71x | 1.90x |
+| financial | `f"{x:.4f}"` | 143.5 | 95.2 | 96.0 | 114.1 | 114.0 | 1.51x | 1.49x | 1.26x | 1.26x |
+| scientific | `repr(x)` | 633.8 | 127.6 | 126.9 | 142.1 | 149.7 | 4.97x | 5.00x | 4.46x | 4.23x |
+| scientific | `f"{x:.4f}"` | 1,079.2 | 159.3 | 2,973.1 | 172.2 | 279.4 | 6.77x | 0.36x | 6.27x | 3.86x |
+| integer_valued | `repr(x)` | 141.8 | 81.8 | 82.0 | 78.0 | 92.4 | 1.73x | 1.73x | 1.82x | 1.54x |
+| integer_valued | `f"{x:.4f}"` | 167.6 | 98.2 | 99.0 | 107.2 | 109.3 | 1.71x | 1.69x | 1.56x | 1.53x |
 
 ## Parse backend
 
 `float(s)` over each corpus, `s` being a stock CPython repr. Speedup is
-`stock / backend`.
+`stock / backend`. `ffc` (ffc.h, the C99 port of fast_float) is the
+pure-C parse backend proposed for CPython; it tracks `fast_float`
+within noise, while `wuffs` loses on 17-digit inputs (`random_bits`)
+where its high-precision-decimal fallback runs.
 
-| Corpus | Operation | Stock (ns) | fast_float | wuffs | stock | fast_float speedup | wuffs speedup | stock speedup |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| random_uniform | `float(s)` | 121.0 | 46.6 | 56.9 | 109.1 | 2.60x | 2.13x | 1.11x |
-| random_bits | `float(s)` | 278.5 | 62.7 | 297.5 | 210.4 | 4.44x | 0.94x | 1.32x |
-| financial | `float(s)` | 36.7 | 36.6 | 41.6 | 78.5 | 1.00x | 0.88x | 0.47x |
-| scientific | `float(s)` | 212.5 | 57.1 | 68.0 | 186.2 | 3.72x | 3.13x | 1.14x |
-| integer_valued | `float(s)` | 43.0 | 42.8 | 47.6 | 68.0 | 1.01x | 0.90x | 0.63x |
+| Corpus | Operation | Stock (ns) | fast_float | wuffs | ffc | stock | fast_float speedup | wuffs speedup | ffc speedup | stock speedup |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random_uniform | `float(s)` | 120.8 | 45.6 | 56.2 | 44.2 | 109.3 | 2.65x | 2.15x | 2.73x | 1.11x |
+| random_bits | `float(s)` | 276.5 | 58.8 | 293.4 | 59.5 | 212.1 | 4.70x | 0.94x | 4.65x | 1.30x |
+| financial | `float(s)` | 36.6 | 37.6 | 39.9 | 37.3 | 79.9 | 0.98x | 0.92x | 0.98x | 0.46x |
+| scientific | `float(s)` | 214.3 | 57.1 | 67.3 | 56.9 | 187.7 | 3.75x | 3.18x | 3.77x | 1.14x |
+| integer_valued | `float(s)` | 43.0 | 43.4 | 47.9 | 44.1 | 66.4 | 0.99x | 0.90x | 0.98x | 0.65x |

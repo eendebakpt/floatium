@@ -1,0 +1,44 @@
+ffc.h — C99 port of fast_float (string-to-double)
+=================================================
+
+Upstream:    https://github.com/kolemannix/ffc.h
+Version:     v26.09.01-1-g7e85c6d (FFC_VERSION 26.09.01)
+Commit:      7e85c6d  (2026-10-02)
+License:     Apache-2.0 OR MIT OR BSL-1.0
+             (see LICENSE-APACHE, LICENSE-MIT, LICENSE-BOOST)
+
+Files vendored
+--------------
+ffc.h        — the amalgamated single header: Clinger fast path,
+               Eisel-Lemire, and fast_float's digit-comparison bigint
+               fallback, ported line by line from fast_float to C99.
+               Define FFC_IMPL in exactly one C translation unit.
+
+Why this and not fast_float / Wuffs
+-----------------------------------
+fast_float is C++, which CPython cannot vendor. Wuffs is C but its
+float parser is an extract of a transpiler-generated multi-codec file,
+rejects numbers with leading zeros ("0001.5"), and falls into a slow
+high-precision-decimal path on 17-digit inputs (~12x slower than
+ffc.h on floatium's random_bits corpus). ffc.h is a direct port of the
+same algorithm fast_float uses, accepts the full strtod grammar, and
+matched fast_float bit for bit on 5.3M published corpus lines plus
+268k exact-midpoint / long-mantissa cases. It is used by valkey and
+hiredis.
+
+Used by which backends
+----------------------
+ffc — bridges floatium's parse path to ffc_from_chars_double_options
+      via src/cpython_adapter/ffc_strtod.c (plain C, _Py_dg_strtod
+      contract). Together with the zmij format backend this is the
+      pure-C pair proposed for CPython.
+
+Build configuration
+-------------------
+    $(CC) -std=c11   (compiles cleanly under CPython's flags)
+
+Local modifications
+-------------------
+None. The vendored files are byte-identical to upstream.
+
+Resync: tools/sync_ffc.sh

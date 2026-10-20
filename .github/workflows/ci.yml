@@ -48,7 +48,7 @@ jobs:
         shell: bash
 
   test-all-backends:
-    # Every optional backend (fmt, ryu_opt, zmij, wuffs, stock) compiled
+    # Every optional backend (fmt, ryu_opt, zmij, wuffs, ffc, stock) compiled
     # in, so tests/test_backends.py can check each one against stock.
     # The wheels only ship the defaults; this job is what keeps the
     # others honest — and, on all three OSes, what proves the pure-C

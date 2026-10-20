@@ -17,6 +17,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #                           upstream library; the CPython-proposal backend),
 #                 all.
 # Parse backend:  fast_float (default), wuffs (pure-C Eisel-Lemire + HPD),
+#                 ffc       (pure-C: ffc.h, the C99 port of fast_float —
+#                           the CPython-proposal backend),
 #                 stock     (libc strtod via floatium's wrapper), all.
 #
 # For a "stock CPython" format baseline, just `floatium.uninstall()` —
@@ -28,9 +30,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # With "all", every backend is compiled in and the active one is chosen at
 # runtime via env vars FLOATIUM_FORMAT_BACKEND / FLOATIUM_PARSE_BACKEND.
 set(FLOATIUM_FORMAT_BACKEND "fmt_opt" CACHE STRING "Format backend: fmt_opt, fmt, ryu_opt, zmij, all")
-set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, stock, all")
+set(FLOATIUM_PARSE_BACKEND  "fast_float" CACHE STRING "Parse backend: fast_float, wuffs, ffc, stock, all")
 set_property(CACHE FLOATIUM_FORMAT_BACKEND PROPERTY STRINGS fmt_opt fmt ryu_opt zmij all)
-set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs stock all)
+set_property(CACHE FLOATIUM_PARSE_BACKEND  PROPERTY STRINGS fast_float wuffs ffc stock all)
 
 # --- Python -----------------------------------------------------------------
 # scikit-build-core passes Python3_EXECUTABLE via the FindPython hint file.
@@ -96,6 +98,13 @@ if(FLOATIUM_PARSE_BACKEND STREQUAL "wuffs" OR FLOATIUM_PARSE_BACKEND STREQUAL "a
     )
     set(FLOATIUM_HAS_WUFFS_PARSE 1)
 endif()
+if(FLOATIUM_PARSE_BACKEND STREQUAL "ffc" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
+    list(APPEND FLOATIUM_SRCS
+        src/backends/ffc_parse.cc
+        src/cpython_adapter/ffc_strtod.c
+    )
+    set(FLOATIUM_HAS_FFC_PARSE 1)
+endif()
 if(FLOATIUM_PARSE_BACKEND STREQUAL "stock" OR FLOATIUM_PARSE_BACKEND STREQUAL "all")
     list(APPEND FLOATIUM_SRCS src/backends/stock_parse.cc)
     set(FLOATIUM_HAS_STOCK_PARSE 1)
@@ -111,6 +120,7 @@ target_include_directories(_ext PRIVATE
     third_party/ryu
     third_party/wuffs
     third_party/zmij
+    third_party/ffc
 )
 
 # Match the build flags the CPython fmt-fastfloat branch uses for the
@@ -155,6 +165,7 @@ target_compile_definitions(_ext PRIVATE
     $<$<BOOL:${FLOATIUM_HAS_ZMIJ_FORMAT}>:FLOATIUM_HAS_ZMIJ_FORMAT=1>
     $<$<BOOL:${FLOATIUM_HAS_FAST_FLOAT_PARSE}>:FLOATIUM_HAS_FAST_FLOAT_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_WUFFS_PARSE}>:FLOATIUM_HAS_WUFFS_PARSE=1>
+    $<$<BOOL:${FLOATIUM_HAS_FFC_PARSE}>:FLOATIUM_HAS_FFC_PARSE=1>
     $<$<BOOL:${FLOATIUM_HAS_STOCK_PARSE}>:FLOATIUM_HAS_STOCK_PARSE=1>
     FLOATIUM_DEFAULT_FORMAT_BACKEND="${FLOATIUM_DEFAULT_FORMAT}"
     FLOATIUM_DEFAULT_PARSE_BACKEND="${FLOATIUM_DEFAULT_PARSE}"

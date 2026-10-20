@@ -12,7 +12,7 @@ see the [README](README.md) first.
  'format_backend': 'fmt_opt',
  'parse_backend': 'fast_float',
  'available_format_backends': 'fmt,fmt_opt,ryu_opt,zmij',
- 'available_parse_backends': 'fast_float,wuffs,stock',
+ 'available_parse_backends': 'fast_float,wuffs,ffc,stock',
  'default_format_backend': 'fmt_opt',
  'default_parse_backend': 'fast_float'}
 ```
@@ -43,6 +43,7 @@ time, or build all of them and switch at install time:
 |----------------------|------------------------------------------------------------|------|
 | `fast_float` (default) | Eisel–Lemire 64-bit + bignum fallback                    | yes  |
 | `wuffs`              | Wuffs `parse_number_f64` — Eisel–Lemire + HPD              | **no** |
+| `ffc`                | ffc.h, the C99 port of fast_float — same pipeline, no C++  | **no** |
 | `stock`              | libc `strtod` via floatium's wrapper                       | no   |
 
 For a true stock-CPython baseline on the format side, call
@@ -52,15 +53,15 @@ formatter produces a packaged string directly. The parse side does
 have a `stock` backend (libc `strtod`) because libc happens to
 match the contract.
 
-`zmij` or `ryu_opt` paired with `wuffs` gives fully pure-C operation —
-zero C++ on either the format or parse path:
+`zmij` or `ryu_opt` paired with `ffc` or `wuffs` gives fully pure-C
+operation — zero C++ on either the format or parse path:
 
 ```python
 import floatium
-floatium.install(format_backend="zmij", parse_backend="wuffs")
+floatium.install(format_backend="zmij", parse_backend="ffc")
 ```
 
-## The CPython candidate: `zmij` + `wuffs`
+## The CPython candidate: `zmij` + `ffc`
 
 `zmij` is the configuration floatium proposes for CPython itself, and
 it is built to be lifted out as-is:
@@ -89,7 +90,20 @@ already computes internally) so mode 0 needs no text round-trip, and
 The parse side is independent of this: `_Py_dg_strtod` and
 `_Py_dg_dtoa` only share dtoa.c's bignum helpers. A format-only change
 can land first, but `dtoa.c` can only be deleted once string-to-float
-is replaced too; `wuffs` is the pure-C candidate for that half.
+is replaced too. `ffc` is the candidate for that half: one unmodified
+single header ([ffc.h](https://github.com/kolemannix/ffc.h), the C99
+port of fast_float, Apache-2.0 / MIT / BSL-1.0) plus the plain-C
+adapter `src/cpython_adapter/ffc_strtod.c`, which only maps
+`ffc_from_chars_double_options` onto the `_Py_dg_strtod` contract
+(`endptr`, `errno = ERANGE`, inf/nan left to `_Py_parse_inf_or_nan`).
+It was chosen over Wuffs because Wuffs' parser is an extract of a
+transpiler-generated file, rejects leading zeros (`float("0001.5")`
+would have to fall back), and is ~12× slower on 17-digit inputs; ffc.h
+matched fast_float bit for bit on 5.3M published corpus lines and
+268k exact-midpoint / long-mantissa cases, and `tools/fuzz_float_oracle.py`
+passes with it installed. Neither zmij nor ffc.h performs any
+floating-point arithmetic, so the x87 precision control dtoa.c needs
+(and the `legacy` float repr mode it implies) can go too.
 
 The `ryu_opt` adapter (mode dispatch, FP fast path for `%e`/`%g`,
 banker's rounding for `round(x, k)` with negative `k`) is ported from
@@ -108,7 +122,7 @@ combinations:
 # Build only the pure-C path (smaller wheel, no C++ in float I/O):
 pip install -e . \
   -C cmake.define.FLOATIUM_FORMAT_BACKEND=zmij \
-  -C cmake.define.FLOATIUM_PARSE_BACKEND=wuffs
+  -C cmake.define.FLOATIUM_PARSE_BACKEND=ffc
 
 # Build every backend, switch at install time:
 pip install -e . \

@@ -3,7 +3,7 @@
 // correctly rounded fixed / scientific writers, bigint-backed above 18
 // digits). This is the backend floatium proposes for CPython itself: one
 // unmodified upstream C library plus the plain-C adapter in
-// src/cpython_adapter/zmij_dtoa.c. Pair with parse_backend="wuffs" for a
+// src/cpython_adapter/zmij_dtoa.c. Pair with parse_backend="ffc" for a
 // fully pure-C float path.
 #include "common/backend.h"
 
